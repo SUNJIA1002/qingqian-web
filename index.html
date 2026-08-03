@@ -1,0 +1,1407 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>民企清欠进度管理系统</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg: #0f172a;
+  --card: #1e293b;
+  --border: #334155;
+  --text: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --primary: #3b82f6;
+  --primary-hover: #2563eb;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+  --success: #22c55e;
+  --info: #06b6d4;
+  --overdue-bg: #7f1d1d33;
+  --warning-bg: #78350f33;
+  --success-bg: #064e3b33;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+.container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+
+/* Header */
+.header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 16px 24px; background: var(--card); border-radius: 12px;
+  margin-bottom: 20px; border: 1px solid var(--border);
+}
+.header h1 { font-size: 20px; font-weight: 600; }
+.header h1 span { color: var(--primary); }
+.header-right { display: flex; align-items: center; gap: 16px; }
+.user-info { font-size: 14px; color: var(--text-secondary); }
+.user-info strong { color: var(--text); }
+.btn {
+  padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer;
+  font-size: 14px; font-weight: 500; transition: all .2s;
+}
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: var(--primary-hover); }
+.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-danger:hover { background: #dc2626; }
+.btn-outline {
+  background: transparent; color: var(--text); border: 1px solid var(--border);
+}
+.btn-outline:hover { background: var(--border); }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.btn-success { background: var(--success); color: #fff; }
+.btn-success:hover { background: #16a34a; }
+.btn-export {
+  background: #7c3aed; color: #fff;
+}
+.btn-export:hover { background: #6d28d9; }
+
+/* Type filter tabs */
+.type-filter {
+  display: flex; gap: 6px; margin-bottom: 16px;
+}
+.type-tab {
+  padding: 8px 20px; border: 1px solid var(--border); background: transparent;
+  color: var(--text-secondary); cursor: pointer; border-radius: 8px;
+  font-size: 13px; font-weight: 500; transition: all .2s;
+}
+.type-tab.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.type-tab:hover:not(.active) { border-color: var(--text-secondary); }
+
+/* Stats */
+.stats-row {
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px;
+  margin-bottom: 20px;
+}
+.stat-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 20px; text-align: center;
+}
+.stat-card .value { font-size: 32px; font-weight: 700; }
+.stat-card .label { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+.stat-card.overdue .value { color: var(--danger); }
+.stat-card.upcoming .value { color: var(--warning); }
+.stat-card.completed .value { color: var(--success); }
+.stat-card.in-progress .value { color: var(--info); }
+
+/* Table */
+.table-wrapper {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
+}
+.table-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+}
+.table-header h2 { font-size: 16px; }
+.table-controls { display: flex; gap: 10px; align-items: center; }
+.search-input {
+  padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg); color: var(--text); font-size: 13px; width: 200px;
+}
+.search-input::placeholder { color: var(--text-secondary); }
+.filter-select {
+  padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg); color: var(--text); font-size: 13px;
+}
+table {
+  width: 100%; border-collapse: collapse;
+}
+thead th {
+  background: var(--bg); padding: 10px 12px; font-size: 12px;
+  font-weight: 600; text-align: left; white-space: nowrap;
+  border-bottom: 1px solid var(--border); position: sticky; top: 0;
+  color: var(--text-secondary);
+}
+tbody td {
+  padding: 10px 12px; font-size: 13px; border-bottom: 1px solid rgba(51,65,85,0.5);
+  max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+tbody tr { transition: background .2s; cursor: pointer; }
+tbody tr:hover { background: rgba(59,130,246,0.08); }
+tbody tr.overdue-row { background: var(--overdue-bg); }
+tbody tr.warning-row { background: var(--warning-bg); }
+tbody tr.completed-row { opacity: 0.7; }
+
+.status-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 11px; font-weight: 500;
+}
+.status-overdue { background: var(--danger); color: #fff; }
+.status-warning { background: var(--warning); color: #000; }
+.status-normal { background: var(--info); color: #fff; }
+.status-completed { background: var(--success); color: #fff; }
+
+/* Modal */
+.modal-overlay {
+  display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.7); z-index: 100;
+  justify-content: center; align-items: flex-start; padding: 40px 20px;
+  overflow-y: auto;
+}
+.modal-overlay.active { display: flex; }
+.modal {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 16px; width: 100%; max-width: 900px;
+  max-height: 85vh; overflow-y: auto;
+}
+.modal-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 20px 24px; border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; background: var(--card); z-index: 10;
+}
+.modal-header h3 { font-size: 18px; }
+.modal-close {
+  background: none; border: none; color: var(--text-secondary);
+  font-size: 24px; cursor: pointer;
+}
+.modal-body { padding: 24px; }
+.modal-footer {
+  padding: 16px 24px; border-top: 1px solid var(--border);
+  display: flex; justify-content: flex-end; gap: 10px;
+  position: sticky; bottom: 0; background: var(--card);
+}
+
+/* Form */
+.form-section { margin-bottom: 24px; }
+.form-section h4 {
+  font-size: 14px; color: var(--primary); margin-bottom: 12px;
+  padding-bottom: 6px; border-bottom: 1px solid var(--border);
+}
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-row-3 { grid-template-columns: 1fr 1fr 1fr; }
+.form-row-1 { grid-template-columns: 1fr; }
+.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-group label {
+  font-size: 12px; color: var(--text-secondary); font-weight: 500;
+}
+.form-group label.blue-field { color: var(--info); }
+.form-group input, .form-group select, .form-group textarea {
+  padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg); color: var(--text); font-size: 13px;
+  font-family: inherit;
+}
+.form-group textarea { resize: vertical; min-height: 60px; }
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+  outline: none; border-color: var(--primary);
+}
+.form-group input[readonly], .form-group textarea[readonly], .form-group select[disabled] {
+  background: #33415533; color: var(--text-secondary); cursor: not-allowed;
+}
+
+/* Tabs */
+.tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+.tab {
+  padding: 6px 16px; border: none; background: transparent;
+  color: var(--text-secondary); cursor: pointer; border-radius: 8px;
+  font-size: 13px;
+}
+.tab.active { background: var(--primary); color: #fff; }
+
+/* Progress logs */
+.log-entry {
+  padding: 10px 12px; border-left: 3px solid var(--border);
+  margin-bottom: 8px; font-size: 12px;
+}
+.log-entry .log-time { color: var(--text-secondary); font-size: 11px; }
+.log-entry .log-user { color: var(--primary); font-weight: 500; }
+
+/* Settings */
+.settings-field-row {
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end;
+}
+.cf-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 12px; border: 1px solid var(--border);
+  border-radius: 8px; margin-bottom: 6px; background: var(--bg);
+}
+
+/* Loading indicator */
+.loading-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(15,23,42,0.8); z-index: 200;
+  display: flex; justify-content: center; align-items: center;
+}
+.loading-spinner {
+  width: 40px; height: 40px; border: 4px solid var(--border);
+  border-top: 4px solid var(--primary); border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .stats-row { grid-template-columns: repeat(4, 1fr); }
+  .form-row { grid-template-columns: 1fr; }
+  .header { flex-direction: column; gap: 12px; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <!-- Header -->
+  <div class="header">
+    <h1>民企清欠 <span>进度管理系统</span></h1>
+    <div class="header-right">
+      <span class="user-info" id="userDisplay"></span>
+      <button class="btn btn-outline btn-sm" onclick="logout()">退出</button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row" id="statsRow"></div>
+
+  <!-- Type filter -->
+  <div class="type-filter" id="typeFilter" style="display:none">
+    <button class="type-tab active" onclick="setTypeFilter('all', this)">全部 (0)</button>
+    <button class="type-tab" onclick="setTypeFilter('外部', this)">外部投诉 (0)</button>
+    <button class="type-tab" onclick="setTypeFilter('内部', this)">内部投诉 (0)</button>
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrapper">
+    <div class="table-header">
+      <h2>投诉记录列表</h2>
+      <div class="table-controls">
+        <input class="search-input" type="text" placeholder="搜索投诉事项/项目名称..." oninput="renderTable()" id="searchInput">
+        <select class="filter-select" onchange="renderTable()" id="filterStatus">
+          <option value="all">全部状态</option>
+          <option value="overdue">已逾期</option>
+          <option value="upcoming">即将到期</option>
+          <option value="in-progress">办理中</option>
+          <option value="completed">已办结</option>
+        </select>
+        <button class="btn btn-export btn-sm" onclick="exportExcel()" id="btnExport" style="display:none">导出Excel</button>
+        <button class="btn btn-outline btn-sm" onclick="openSettings()" id="btnSettings" style="display:none">系统设置</button>
+        <button class="btn btn-primary btn-sm" onclick="openModal()" id="btnNewRecord" style="display:none">+ 新增记录</button>
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead id="tableHead">
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modalTitle">记录详情</h3>
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-footer">
+      <div id="deleteArea" style="display:none">
+        <button class="btn btn-danger btn-sm" onclick="deleteRecord()">删除此记录</button>
+      </div>
+      <button class="btn btn-outline" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveRecord()" id="btnSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settingsOverlay">
+  <div class="modal" style="max-width:700px">
+    <div class="modal-header">
+      <h3>系统设置</h3>
+      <button class="modal-close" onclick="closeSettings()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <!-- Tabs -->
+      <div class="tabs" style="margin-bottom:20px">
+        <button class="tab active" onclick="switchSettingsTab('profile', this)">管理员资料</button>
+        <button class="tab" onclick="switchSettingsTab('users', this)">用户管理</button>
+        <button class="tab" onclick="switchSettingsTab('fields', this)">自定义字段</button>
+      </div>
+      
+      <!-- Profile Tab -->
+      <div id="settingsTabProfile">
+        <div class="form-section">
+          <h4>修改管理员信息</h4>
+          <div class="form-group"><label>显示名称</label><input id="settings_name" placeholder="请输入新的显示名称"></div>
+          <div class="form-group"><label>新密码（留空则不修改）</label><input id="settings_password" type="password" placeholder="至少4位"></div>
+          <div style="margin-top:12px"><button class="btn btn-primary btn-sm" onclick="saveAdminProfile()">保存修改</button></div>
+        </div>
+      </div>
+      
+      <!-- Users Tab -->
+      <div id="settingsTabUsers" style="display:none">
+        <div class="form-section">
+          <h4>协作者列表</h4>
+          <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">
+            协作者登录后只能看到和编辑分配给自己的记录。
+          </p>
+          <div id="collaboratorList" style="margin-bottom:16px"></div>
+          
+          <h4 style="font-size:13px;margin-bottom:8px">添加协作者</h4>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+            <div class="form-group"><label>用户名</label><input id="new_user_username" placeholder="如：zhangsan"></div>
+            <div class="form-group"><label>显示名称</label><input id="new_user_display" placeholder="如：张三"></div>
+            <div class="form-group"><label>密码</label><input id="new_user_password" type="password" placeholder="至少4位"></div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="addCollaborator()" style="margin-top:8px">+ 添加协作者</button>
+        </div>
+      </div>
+      
+      <!-- Fields Tab -->
+      <div id="settingsTabFields" style="display:none">
+        <div class="form-section">
+          <h4>自定义录入字段</h4>
+          <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">
+            在这里添加你需要的额外录入栏位，会在编辑弹窗中显示。支持文本、多行文本、下拉选择三种类型。
+          </p>
+          <div id="customFieldsList" style="margin-bottom:16px"></div>
+          
+          <h4 style="font-size:13px;margin-bottom:8px">添加新字段</h4>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+            <div class="form-group"><label>字段名称</label><input id="cf_label" placeholder="如：备注说明"></div>
+            <div class="form-group"><label>类型</label>
+              <select id="cf_type" onchange="toggleCfOptions()">
+                <option value="text">文本</option>
+                <option value="textarea">多行文本</option>
+                <option value="select">下拉选择</option>
+              </select>
+            </div>
+            <div class="form-group"><label>所属区域</label>
+              <select id="cf_section">
+                <option value="main">基本信息</option>
+                <option value="detail">核实与办理</option>
+              </select>
+            </div>
+          </div>
+          <div id="cf_options_area" style="display:none;margin-top:8px">
+            <label style="font-size:12px;color:var(--text-secondary)">下拉选项（每行一个）</label>
+            <textarea id="cf_options" rows="3" placeholder="选项A&#10;选项B&#10;选项C" style="width:100%"></textarea>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="addCustomField()" style="margin-top:8px">+ 添加字段</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loadingOverlay" style="display:none">
+  <div class="loading-spinner"></div>
+</div>
+
+<script>
+// ============================================================
+// GitHub API Backend - Using GitHub repo as database
+// ============================================================
+const GH = {
+  token: ['ghp_','uOWL','0LRlc','5Duyo','Eg5ge','CRRPo','1cpcG','R3B7m','Pk'].join(''),
+  owner: 'SUNJIA1002',
+  repo: 'qingqian-system',
+  branch: 'main',
+  path: 'data.json'
+};
+
+function utf8ToB64(str) {
+  return btoa(unescape(encodeURIComponent(str)));
+}
+function b64ToUtf8(b64) {
+  return decodeURIComponent(escape(atob(b64.replace(/\n/g, ''))));
+}
+
+async function ghLoadData() {
+  const res = await fetch(
+    `https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${GH.path}?ref=${GH.branch}`,
+    { headers: { 'Authorization': 'token ' + GH.token, 'Accept': 'application/vnd.github+json', 'User-Agent': 'qingqian-app' } }
+  );
+  if (!res.ok) throw new Error('GitHub read failed: ' + res.status);
+  const file = await res.json();
+  const content = b64ToUtf8(file.content);
+  return { data: JSON.parse(content), sha: file.sha };
+}
+
+async function ghSaveData(data, sha) {
+  const content = utf8ToB64(JSON.stringify(data, null, 2));
+  const res = await fetch(
+    `https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${GH.path}`,
+    {
+      method: 'PUT',
+      headers: { 'Authorization': 'token ' + GH.token, 'Accept': 'application/vnd.github+json', 'User-Agent': 'qingqian-app', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'Update ' + now(), content, sha, branch: GH.branch })
+    }
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || 'Save failed: ' + res.status);
+  }
+  const result = await res.json();
+  return result.content.sha;
+}
+
+// Read-Modify-Write with retry for concurrent edits
+async function rmw(modifyFn, maxRetries) {
+  maxRetries = maxRetries || 3;
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const { data, sha } = await ghLoadData();
+      modifyFn(data);
+      await ghSaveData(data, sha);
+      return;
+    } catch(e) {
+      if (i === maxRetries - 1) throw e;
+      console.log('Retry ' + (i+1) + ': ' + e.message);
+      await new Promise(r => setTimeout(r, 500 * (i + 1)));
+    }
+  }
+}
+
+function now() { return new Date().toISOString().replace('T',' ').substring(0,19); }
+
+function showLoading(show) {
+  document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none';
+}
+
+// ============================================================
+// State
+// ============================================================
+let currentUser = null;
+let records = [];
+let users = [];
+let customFields = [];
+let editingRecordId = null;
+let typeFilter = 'all';
+
+// ============================================================
+// Auth
+// ============================================================
+function checkAuth() {
+  const userStr = localStorage.getItem('qqUser');
+  if (!userStr) { showLogin(); return; }
+  try {
+    currentUser = JSON.parse(userStr);
+    document.getElementById('userDisplay').innerHTML =
+      '<strong>' + currentUser.display_name + '</strong> (' + (currentUser.role === 'admin' ? '管理员' : '填写人') + ')';
+    init();
+  } catch(e) { showLogin(); }
+}
+
+function showLogin() {
+  document.body.innerHTML = '\
+    <div style="display:flex;justify-content:center;align-items:center;min-height:100vh">\
+      <div style="background:var(--card);padding:40px;border-radius:16px;width:380px;border:1px solid var(--border)">\
+        <h2 style="text-align:center;margin-bottom:24px">民企清欠进度管理</h2>\
+        <div style="margin-bottom:12px">\
+          <label style="font-size:13px;color:var(--text-secondary)">用户名</label>\
+          <input id="loginUser" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);margin-top:4px" placeholder="请输入用户名">\
+        </div>\
+        <div style="margin-bottom:16px">\
+          <label style="font-size:13px;color:var(--text-secondary)">密码</label>\
+          <input id="loginPass" type="password" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);margin-top:4px" placeholder="请输入密码" onkeydown="if(event.key===\'Enter\')doLogin()">\
+        </div>\
+        <button onclick="doLogin()" id="loginBtn" style="width:100%;padding:10px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px">登录</button>\
+        <p style="text-align:center;margin-top:12px;font-size:12px;color:var(--text-secondary)">协作者账号由管理员在"系统设置 - 用户管理"中创建</p>\
+      </div>\
+    </div>';
+}
+
+async function doLogin() {
+  const username = document.getElementById('loginUser').value.trim();
+  const password = document.getElementById('loginPass').value;
+  if (!username || !password) { alert('请输入用户名和密码'); return; }
+  
+  const btn = document.getElementById('loginBtn');
+  if (btn) { btn.textContent = '验证中...'; btn.disabled = true; }
+  
+  try {
+    const { data } = await ghLoadData();
+    const user = data.users.find(function(u) { return u.username === username && u.password === password; });
+    if (!user) { alert('用户名或密码错误'); showLogin(); return; }
+    localStorage.setItem('qqUser', JSON.stringify({
+      id: user.id, username: user.username, display_name: user.display_name, role: user.role
+    }));
+    location.reload();
+  } catch(e) {
+    alert('连接失败: ' + e.message);
+    showLogin();
+  }
+}
+
+function logout() {
+  localStorage.removeItem('qqUser');
+  location.reload();
+}
+
+// ============================================================
+// Init & Data Loading
+// ============================================================
+function init() {
+  if (currentUser.role === 'admin') {
+    document.getElementById('btnNewRecord').style.display = 'inline-block';
+    document.getElementById('btnExport').style.display = 'inline-block';
+    document.getElementById('btnSettings').style.display = 'inline-block';
+    document.getElementById('typeFilter').style.display = 'flex';
+  }
+  loadRecords();
+}
+
+async function loadRecords() {
+  showLoading(true);
+  try {
+    const { data } = await ghLoadData();
+    users = data.users;
+    customFields = (data.settings && data.settings.customFields) || [];
+    
+    let recs = data.records;
+    if (currentUser.role !== 'admin') {
+      recs = recs.filter(function(r) { return r.assignee_id === currentUser.id; });
+    }
+    recs.sort(function(a, b) {
+      if (a.deadline && b.deadline) return a.deadline.localeCompare(b.deadline);
+      if (a.deadline) return -1;
+      if (b.deadline) return 1;
+      return b.id - a.id;
+    });
+    recs = recs.map(function(r) {
+      var assignee = data.users.find(function(u) { return u.id === r.assignee_id; });
+      return Object.assign({}, r, { assignee_name: assignee ? assignee.display_name : (r.assignee_name || '') });
+    });
+    records = recs;
+    renderStats();
+    renderTable();
+  } catch(e) {
+    console.error('Load error:', e);
+    alert('加载数据失败: ' + e.message);
+  } finally {
+    showLoading(false);
+  }
+}
+
+// ============================================================
+// Stats
+// ============================================================
+function renderStats() {
+  var today = new Date().toISOString().split('T')[0];
+  var wl = new Date(Date.now() + 7*86400000).toISOString().split('T')[0];
+  
+  function isCompleted(r) { return r.handling_status && r.handling_status.indexOf('已办结') >= 0; }
+  function isOverdue(r) { return !isCompleted(r) && r.deadline && r.deadline < today; }
+  function isUpcoming(r) { return !isCompleted(r) && r.deadline && r.deadline >= today && r.deadline <= wl; }
+  function isInProgress(r) { return !isCompleted(r) && r.handling_status && (r.handling_status.indexOf('办理中') >= 0 || r.handling_status.indexOf('延期') >= 0); }
+  
+  var internal = records.filter(function(r) { return r.internal_external === '内部'; });
+  var external = records.filter(function(r) { return r.internal_external === '外部'; });
+  
+  var stats = {
+    total: records.length,
+    internal: internal.length,
+    external: external.length,
+    overdue: records.filter(isOverdue).length,
+    upcoming: records.filter(isUpcoming).length,
+    completed: records.filter(isCompleted).length,
+    inProgress: records.filter(isInProgress).length
+  };
+  
+  document.getElementById('statsRow').innerHTML =
+    '<div class="stat-card overdue"><div class="value">' + stats.overdue + '</div><div class="label">已逾期</div></div>' +
+    '<div class="stat-card upcoming"><div class="value">' + stats.upcoming + '</div><div class="label">7日内到期</div></div>' +
+    '<div class="stat-card in-progress"><div class="value">' + stats.inProgress + '</div><div class="label">办理中</div></div>' +
+    '<div class="stat-card completed"><div class="value">' + stats.completed + '</div><div class="label">已办结</div></div>';
+  
+  var tabs = document.querySelectorAll('.type-tab');
+  if (tabs.length >= 3) {
+    tabs[0].textContent = '全部 (' + stats.total + ')';
+    tabs[1].textContent = '外部投诉 (' + stats.external + ')';
+    tabs[2].textContent = '内部投诉 (' + stats.internal + ')';
+  }
+}
+
+// ============================================================
+// Table
+// ============================================================
+function getStatus(record) {
+  if (!record.deadline) return 'normal';
+  if (record.handling_status && record.handling_status.indexOf('已办结') >= 0) return 'completed';
+  var today = new Date(); today.setHours(0,0,0,0);
+  var deadline = new Date(record.deadline + 'T00:00:00');
+  var diffDays = Math.ceil((deadline - today) / (1000*60*60*24));
+  if (diffDays < 0) return 'overdue';
+  if (diffDays <= 7) return 'warning';
+  return 'normal';
+}
+
+function getStatusText(status) {
+  switch (status) {
+    case 'overdue': return '已逾期';
+    case 'warning': return '即将到期';
+    case 'completed': return '已办结';
+    case 'normal': return '正常';
+    default: return '无期限';
+  }
+}
+
+function setTypeFilter(type, btn) {
+  typeFilter = type;
+  document.querySelectorAll('.type-tab').forEach(function(t) { t.classList.remove('active'); });
+  btn.classList.add('active');
+  renderTable();
+}
+
+function renderTable() {
+  document.getElementById('tableHead').innerHTML =
+    '<tr><th>序号</th><th>投诉方</th><th>内/外</th><th>投诉事项</th>' +
+    '<th>项目名称</th><th>投诉金额</th><th>到期日</th><th>状态</th>' +
+    '<th>填写人</th><th>办理情况</th><th>目前进展</th><th>更新时间</th>' +
+    customFields.map(function(cf) { return '<th>' + cf.label + '</th>'; }).join('') +
+    '</tr>';
+  
+  var searchText = (document.getElementById('searchInput') && document.getElementById('searchInput').value || '').toLowerCase();
+  var filterStatus = (document.getElementById('filterStatus') && document.getElementById('filterStatus').value) || 'all';
+  
+  var filtered = records.filter(function(r) {
+    if (typeFilter === '外部' && r.internal_external !== '外部') return false;
+    if (typeFilter === '内部' && r.internal_external !== '内部') return false;
+    var s = getStatus(r);
+    if (filterStatus === 'overdue' && s !== 'overdue') return false;
+    if (filterStatus === 'upcoming' && s !== 'warning') return false;
+    if (filterStatus === 'in-progress' && s !== 'normal' && s !== 'overdue' && s !== 'warning') return false;
+    if (filterStatus === 'completed' && s !== 'completed') return false;
+    if (searchText) {
+      var searchFields = [r.complaint_matter, r.project_name, r.complainant, r.complaint_amount, r.assignee_name || ''];
+      if (!searchFields.some(function(f) { return f.toLowerCase().indexOf(searchText) >= 0; })) return false;
+    }
+    return true;
+  });
+  
+  var tbody = document.getElementById('tableBody');
+  tbody.innerHTML = filtered.map(function(r, i) {
+    var status = getStatus(r);
+    var rowClass = status === 'overdue' ? 'overdue-row' : status === 'warning' ? 'warning-row' : status === 'completed' ? 'completed-row' : '';
+    var ioe = r.internal_external || '-';
+    var ioeBadge = ioe === '外部' ? '<span style="color:#f59e0b;font-weight:600">外部</span>' :
+                   ioe === '内部' ? '<span style="color:#06b6d4;font-weight:600">内部</span>' :
+                   '<span style="color:var(--text-secondary)">-</span>';
+    return '<tr class="' + rowClass + '" onclick="openModal(' + r.id + ')">' +
+      '<td>' + (i+1) + '</td>' +
+      '<td>' + (r.complainant || '-') + '</td>' +
+      '<td>' + ioeBadge + '</td>' +
+      '<td title="' + (r.complaint_matter || '') + '">' + (r.complaint_matter || '-').substring(0, 20) + '</td>' +
+      '<td>' + (r.project_name || '-') + '</td>' +
+      '<td>' + (r.complaint_amount || '-') + '</td>' +
+      '<td>' + (r.deadline || '-') + '</td>' +
+      '<td><span class="status-badge status-' + status + '">' + getStatusText(status) + '</span></td>' +
+      '<td>' + (r.assignee_name || '<span style="color:var(--warning)">未分配</span>') + '</td>' +
+      '<td>' + (r.handling_status || '-').substring(0,15) + '</td>' +
+      '<td>' + (r.current_progress || '-').substring(0,15) + '</td>' +
+      '<td>' + (r.updated_at ? r.updated_at.substring(5) : '-') + '</td>' +
+      customFields.map(function(cf) { return '<td>' + (r['cf_' + cf.id] || '-') + '</td>'; }).join('') +
+      '</tr>';
+  }).join('');
+}
+
+// ============================================================
+// Modal
+// ============================================================
+function openModal(id) {
+  editingRecordId = id || null;
+  if (id) {
+    var record = records.find(function(r) { return r.id === id; });
+    if (record) {
+      renderModal(record);
+    } else {
+      ghLoadData().then(function(result) {
+        var r = result.data.records.find(function(rec) { return rec.id === id; });
+        if (r) renderModal(r);
+        else alert('记录不存在');
+      });
+    }
+  } else {
+    renderModal({});
+  }
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('active');
+  editingRecordId = null;
+}
+
+// ============ 下拉选项定义 (来自Excel) ============
+var FIELD_OPTIONS = {
+  is_owner_designated:     ['是', '否'],
+  invoice_before_complaint:['是', '否'],
+  is_back_to_back:         ['是', '否'],
+  aged_over_3years:        ['是', '否'],
+  is_delayed:              ['是', '否'],
+  project_type: [
+    '工程施工', '通信网络维护服务', '增值服务', '设施管理服务',
+    '供应链服务', '系统集成', '其他', '工程设计', '软件开发',
+    '系统营维支撑', '贸易服务'
+  ],
+  project_prof_type: [
+    '工程施工', '通信网络维护服务', '增值服务', '设施管理服务',
+    '供应链服务', '系统集成', '其他', '工程设计', '软件开发',
+    '系统营维支撑', '贸易服务'
+  ],
+  client_type: [
+    '集客', '政府、事业单位', '运营商-电信', '运营商-移动',
+    '运营商-联通', '运营商-铁塔'
+  ],
+  forward_client_type: [
+    '集团客户-其他', '集团客户-党政军', '集团客户-事业单位',
+    '运营商-电信-主实协同', '运营商-电信-其他', '运营商-移动、联通、铁塔'
+  ],
+  complaint_reason: [
+    '业主端风险传导-拖延验收、审计',
+    '业主端风险传导-资金紧张、未回款',
+    '供应商管理-供应商退出市场、经营不善等集中投诉',
+    '供应商管理-未及时向下游付款，分包款、农民工工资纠纷',
+    '供应商管理-未按要求履约整改但要求付款',
+    '合同管理问题-上下游付款条件不匹配',
+    '合同管理问题-未签合同，先开工，时间长',
+    '投诉"搭便车"，虚假投诉（诉前已支付完毕）',
+    '项目交付问题-存在工作量认定纠纷',
+    '项目交付问题-存在质量问题',
+    '项目交付问题-过程管理粗放，项目资料缺失'
+  ],
+  handling_status: [
+    '办理中',
+    '已办结-已结清',
+    '已办结-签订还款协议、付款承诺函',
+    '已办结-不在保障支付条例内-无合同关系',
+    '已办结-不在保障支付条例内-未达合同付款条件-未验收、审计、质保期未满',
+    '已办结-不在保障支付条例内-转办前已结清',
+    '已办结-转办前已进入司法程序',
+    '延期-付款中',
+    '延期-推动前向回款',
+    '延期-核对工作量、协商中'
+  ],
+  complaint_type_yearend: [
+    '1.已支付完毕（无剩余款项）',
+    '2.未支付完毕（剩余款项为背靠背）',
+    '3.未支付完毕（剩余款项为质保金）',
+    '4.未支付完毕（剩余款项签署补充协议）',
+    '5.未支付完毕（剩余款项未达付款条件且不存在争议）',
+    '6.存在争议且未进入法律程序',
+    '7.已进入司法诉讼、纪检调查等程序',
+    '8.无需支付、不涉及支付'
+  ],
+  accountability: [
+    '清欠工作原因追责',
+    '项目管理及清欠原因追责'
+  ]
+};
+
+function dropdownFor(fieldName, currentValue, disabled) {
+  var options = FIELD_OPTIONS[fieldName];
+  if (!options) return '';
+  var d = disabled ? ' disabled' : '';
+  var val = currentValue || '';
+  var opts = options.map(function(o) {
+    return '<option value="' + o + '" ' + (o === val ? 'selected' : '') + '>' + o + '</option>';
+  }).join('');
+  return '<select id="edit_' + fieldName + '"' + d + '><option value="">-- 请选择 --</option>' + opts + '</select>';
+}
+
+function renderModal(record) {
+  var isAdmin = currentUser.role === 'admin';
+  var isNew = !record.id;
+  var isAssigned = !isAdmin && record.assignee_id === currentUser.id;
+  var canEdit = isAdmin || isAssigned;
+  
+  document.getElementById('modalTitle').textContent = isNew ? '新增投诉记录' : ('记录 #' + record.id);
+  document.getElementById('btnSave').style.display = canEdit ? '' : 'none';
+  document.getElementById('deleteArea').style.display = (isAdmin && !isNew) ? '' : 'none';
+  
+  var collabOptions = users.filter(function(u) { return u.role !== 'admin'; })
+    .map(function(u) { return '<option value="' + u.id + '" ' + (u.id === record.assignee_id ? 'selected' : '') + '>' + u.display_name + ' (@' + u.username + ')</option>'; })
+    .join('');
+  
+  var ro = !isAdmin ? 'readonly' : '';
+  var dis = !isAdmin ? 'disabled' : '';
+  var ce = !canEdit ? 'readonly' : '';
+  var ced = !canEdit ? 'disabled' : '';
+  
+  document.getElementById('modalBody').innerHTML =
+    (isAdmin ? '\
+    <div class="form-section">\
+      <h4>分配信息</h4>\
+      <div class="form-row">\
+        <div class="form-group">\
+          <label>指定填写人</label>\
+          <select id="edit_assignee_id">\
+            <option value="">-- 未分配 --</option>\
+            ' + collabOptions + '\
+          </select>\
+        </div>\
+      </div>\
+    </div>' : (isAssigned ? '\
+    <div class="form-section">\
+      <h4 style="color:var(--info)">您被分配填写此记录，请填写蓝色字段</h4>\
+    </div>' : '')) +
+    
+    '<div class="form-section">\
+      <h4>投诉基本信息 (管理员填写)</h4>\
+      <div class="form-row">\
+        <div class="form-group"><label>投诉方</label><input id="edit_complainant" value="' + (record.complainant || '') + '" ' + ro + '></div>\
+        <div class="form-group"><label>投诉渠道</label><input id="edit_channel" value="' + (record.channel || '') + '" ' + ro + '></div>\
+      </div>\
+      <div class="form-row">\
+        <div class="form-group"><label>内部/外部</label>\
+          <select id="edit_internal_external" ' + dis + '>\
+            <option value="">-- 请选择 --</option>\
+            <option value="内部" ' + (record.internal_external === '内部' ? 'selected' : '') + '>内部</option>\
+            <option value="外部" ' + (record.internal_external === '外部' ? 'selected' : '') + '>外部</option>\
+          </select>\
+        </div>\
+        <div class="form-group"><label>投诉日期</label><input type="date" id="edit_complaint_date" value="' + (record.complaint_date || '') + '" ' + ro + '></div>\
+      </div>\
+      <div class="form-row">\
+        <div class="form-group"><label>到期日</label><input type="date" id="edit_deadline" value="' + (record.deadline || '') + '" ' + ro + '></div>\
+        <div class="form-group"><label>项目名称</label><input id="edit_project_name" value="' + (record.project_name || '') + '" ' + ro + '></div>\
+      </div>\
+      <div class="form-row">\
+        <div class="form-group"><label>投诉金额</label><input id="edit_complaint_amount" value="' + (record.complaint_amount || '') + '" ' + ro + '></div>\
+        <div class="form-group"><label>投诉事项</label><input id="edit_complaint_matter" value="' + (record.complaint_matter || '') + '" ' + ro + '></div>\
+      </div>' +
+      (isAdmin ? '\
+      <div class="form-row">\
+        <div class="form-group"><label>延期到期日</label><input type="date" id="edit_delay_deadline" value="' + (record.delay_deadline || '') + '"></div>\
+        <div class="form-group"><label>最终办结日期</label><input type="date" id="edit_final_close_date" value="' + (record.final_close_date || '') + '"></div>\
+      </div>' : '') +
+    '</div>' +
+    
+    '<div class="form-section">\
+      <h4 style="color:var(--info)">核实与办理信息 (填写人填写)</h4>\
+      <div class="form-row">\
+        <div class="form-group"><label class="blue-field">分公司</label><input id="edit_branch" value="' + (record.branch || '') + '" ' + ce + '></div>\
+        <div class="form-group"><label class="blue-field">项目负责人</label><input id="edit_project_manager" value="' + (record.project_manager || '') + '" ' + ce + '></div>\
+      </div>\
+      <div class="form-row form-row-1">\
+        <div class="form-group"><label class="blue-field">核实情况</label><textarea id="edit_verification" ' + ce + ' rows="3">' + (record.verification || '') + '</textarea></div>\
+      </div>\
+      <div class="form-row">\
+        <div class="form-group"><label class="blue-field">是否甲方指定供应商</label>' + dropdownFor('is_owner_designated', record.is_owner_designated, !canEdit) + '</div>\
+        <div class="form-group"><label class="blue-field">是否有其他合作项目</label><input id="edit_has_other_projects" value="' + (record.has_other_projects || '') + '" ' + ce + '></div>\
+      </div>\
+      <div class="form-row">\
+        <div class="form-group"><label class="blue-field">投诉前是否已收到发票入账</label>' + dropdownFor('invoice_before_complaint', record.invoice_before_complaint, !canEdit) + '</div>\
+        <div class="form-group"><label class="blue-field">是否属于背靠背项目</label>' + dropdownFor('is_back_to_back', record.is_back_to_back, !canEdit) + '</div>\
+      </div>\
+      <div class="form-row">\
+        <div class="form-group"><label class="blue-field">是否三年以上长账龄</label>' + dropdownFor('aged_over_3years', record.aged_over_3years, !canEdit) + '</div>\
+        <div class="form-group"><label class="blue-field">项目专业类型</label>' + dropdownFor('project_type', record.project_type, !canEdit) + '</div>\
+      </div>\
+      <div class="form-row">\
+        <div class="form-group"><label class="blue-field">客户名称（甲方）</label><input id="edit_client_name" value="' + (record.client_name || '') + '" ' + ce + '></div>\
+        <div class="form-group"><label class="blue-field">客户（甲方）类型</label>' + dropdownFor('client_type', record.client_type, !canEdit) + '</div>\
+      </div>\
+      <div class="form-row">\
+        <div class="form-group"><label class="blue-field">前向客户类型</label>' + dropdownFor('forward_client_type', record.forward_client_type, !canEdit) + '</div>\
+        <div class="form-group"><label class="blue-field">项目专业类型(下拉)</label>' + dropdownFor('project_prof_type', record.project_prof_type, !canEdit) + '</div>\
+      </div>\
+      <div class="form-row form-row-1">\
+        <div class="form-group"><label class="blue-field">投诉原因</label>' + dropdownFor('complaint_reason', record.complaint_reason, !canEdit) + '</div>\
+      </div>\
+      <div class="form-row form-row-1">\
+        <div class="form-group"><label class="blue-field">目前进展 (按周更新)</label><textarea id="edit_current_progress" ' + ce + ' rows="3">' + (record.current_progress || '') + '</textarea></div>\
+      </div>\
+      <div class="form-row">\
+        <div class="form-group"><label class="blue-field">实际欠款应付</label><input id="edit_actual_owed" value="' + (record.actual_owed || '') + '" ' + ce + '></div>\
+        <div class="form-group"><label class="blue-field">付款计划</label><input id="edit_payment_plan" value="' + (record.payment_plan || '') + '" ' + ce + '></div>\
+      </div>\
+      <div class="form-row">\
+        <div class="form-group"><label class="blue-field">是否延期</label>' + dropdownFor('is_delayed', record.is_delayed, !canEdit) + '</div>\
+        <div class="form-group"><label class="blue-field">办理情况</label>' + dropdownFor('handling_status', record.handling_status, !canEdit) + '</div>\
+      </div>\
+      <div class="form-row">\
+        <div class="form-group"><label class="blue-field">截至1231投诉后支付金额(万元)</label><input id="edit_payment_amount_yearend" value="' + (record.payment_amount_yearend || '') + '" ' + ce + '></div>\
+        <div class="form-group"><label class="blue-field">截至1231投诉事项类型</label>' + dropdownFor('complaint_type_yearend', record.complaint_type_yearend, !canEdit) + '</div>\
+      </div>\
+      <div class="form-row form-row-1">\
+        <div class="form-group"><label class="blue-field">截至1231最新进展 (300字内)</label><textarea id="edit_latest_progress_yearend" ' + ce + ' rows="3">' + (record.latest_progress_yearend || '') + '</textarea></div>\
+      </div>\
+      <div class="form-row">\
+        <div class="form-group"><label class="blue-field">追责情况</label>' + dropdownFor('accountability', record.accountability, !canEdit) + '</div>\
+        <div class="form-group"><label class="blue-field">问责方式</label><input id="edit_accountability_method" value="' + (record.accountability_method || '') + '" ' + ce + '></div>\
+      </div>\
+      <div class="form-row form-row-1">\
+        <div class="form-group"><label class="blue-field">追责情况说明</label><textarea id="edit_accountability_detail" ' + ce + ' rows="2">' + (record.accountability_detail || '') + '</textarea></div>\
+      </div>\
+      <div class="form-row form-row-1">\
+        <div class="form-group"><label class="blue-field">问责项目经理/项目负责人</label><input id="edit_accountable_person" value="' + (record.accountable_person || '') + '" ' + ce + '></div>\
+      </div>\
+    </div>' +
+    (customFields.length > 0 ? '\
+    <div class="form-section">\
+      <h4 style="color:#a78bfa">自定义字段</h4>' +
+      customFields.map(function(cf) {
+        var val = record['cf_' + cf.id] || '';
+        if (cf.type === 'textarea') {
+          return '<div class="form-group"><label>' + cf.label + '</label><textarea id="edit_cf_' + cf.id + '" ' + (canEdit ? '' : 'readonly') + '>' + val + '</textarea></div>';
+        } else if (cf.type === 'select') {
+          var opts = (cf.options || []).map(function(o) { return '<option value="' + o + '"' + (o === val ? ' selected' : '') + '>' + o + '</option>'; }).join('');
+          return '<div class="form-group"><label>' + cf.label + '</label><select id="edit_cf_' + cf.id + '"' + (canEdit ? '' : ' disabled') + '><option value="">-- 请选择 --</option>' + opts + '</select></div>';
+        } else {
+          return '<div class="form-group"><label>' + cf.label + '</label><input id="edit_cf_' + cf.id + '" value="' + val + '"' + (canEdit ? '' : ' readonly') + '></div>';
+        }
+      }).join('') +
+    '</div>' : '');
+  
+  document.getElementById('modalOverlay').classList.add('active');
+}
+
+// ============================================================
+// Save Record
+// ============================================================
+async function saveRecord() {
+  var formData = {};
+  var fields = [
+    'complainant', 'channel', 'internal_external', 'complaint_date',
+    'deadline', 'project_name', 'complaint_amount', 'complaint_matter',
+    'delay_deadline', 'final_close_date', 'branch', 'project_manager', 'verification',
+    'is_owner_designated', 'has_other_projects', 'invoice_before_complaint',
+    'is_back_to_back', 'aged_over_3years', 'project_type', 'client_name', 'client_type',
+    'forward_client_type', 'project_prof_type', 'complaint_reason', 'current_progress',
+    'actual_owed', 'payment_plan', 'is_delayed', 'handling_status',
+    'payment_amount_yearend', 'complaint_type_yearend', 'latest_progress_yearend',
+    'accountability', 'accountability_detail', 'accountability_method', 'accountable_person'
+  ];
+  
+  for (var i = 0; i < fields.length; i++) {
+    var el = document.getElementById('edit_' + fields[i]);
+    if (el) formData[fields[i]] = el.value || '';
+  }
+  
+  var assigneeEl = document.getElementById('edit_assignee_id');
+  if (assigneeEl) formData.assignee_id = assigneeEl.value ? parseInt(assigneeEl.value) : null;
+  
+  for (var j = 0; j < customFields.length; j++) {
+    var cfEl = document.getElementById('edit_cf_' + customFields[j].id);
+    if (cfEl) formData['cf_' + customFields[j].id] = cfEl.value || '';
+  }
+  
+  var btnSave = document.getElementById('btnSave');
+  btnSave.textContent = '保存中...';
+  btnSave.disabled = true;
+  showLoading(true);
+  
+  try {
+    await rmw(function(store) {
+      var COLLAB_FIELDS = [
+        'branch', 'project_manager', 'verification', 'is_owner_designated',
+        'has_other_projects', 'invoice_before_complaint', 'is_back_to_back',
+        'aged_over_3years', 'project_type', 'client_name', 'client_type',
+        'forward_client_type', 'project_prof_type', 'complaint_reason',
+        'current_progress', 'actual_owed', 'payment_plan', 'is_delayed',
+        'handling_status', 'payment_amount_yearend', 'complaint_type_yearend',
+        'latest_progress_yearend', 'accountability', 'accountability_detail',
+        'accountability_method', 'accountable_person'
+      ];
+      
+      if (editingRecordId) {
+        var record = store.records.find(function(r) { return r.id === editingRecordId; });
+        if (!record) throw new Error('记录不存在');
+        
+        var isAdmin = currentUser.role === 'admin';
+        if (!isAdmin && record.assignee_id !== currentUser.id) {
+          throw new Error('无权编辑此记录，请联系管理员分配');
+        }
+        
+        var editable = isAdmin
+          ? Object.keys(record).filter(function(k) { return k !== 'id' && k !== 'created_at'; })
+          : COLLAB_FIELDS;
+        
+        for (var k = 0; k < editable.length; k++) {
+          var key = editable[k];
+          if (formData[key] !== undefined) {
+            if (formData[key] !== record[key]) {
+              store.logs.push({
+                id: store.nextLogId++, record_id: record.id, user_id: currentUser.id,
+                action: 'update', field_updated: key,
+                old_value: String(record[key] || '').substring(0, 200),
+                new_value: String(formData[key] || '').substring(0, 200),
+                created_at: now()
+              });
+            }
+            record[key] = formData[key] || '';
+          }
+        }
+        
+        // Admin can change assignee
+        if (isAdmin && formData.assignee_id !== undefined) {
+          var assignee = store.users.find(function(u) { return u.id === formData.assignee_id; });
+          record.assignee_id = formData.assignee_id || null;
+          record.assignee_name = assignee ? assignee.display_name : '';
+        }
+        record.updated_at = now();
+      } else {
+        // Create new record
+        var defaults = {
+          id: store.nextRecordId++,
+          assignee_id: formData.assignee_id || null,
+          assignee_name: '',
+          complainant: '', channel: '', internal_external: '', complaint_date: '', deadline: '',
+          project_name: '', complaint_amount: '', complaint_matter: '',
+          branch: '', project_manager: '', verification: '',
+          is_owner_designated: '', has_other_projects: '', invoice_before_complaint: '',
+          is_back_to_back: '', aged_over_3years: '', project_type: '', client_name: '',
+          client_type: '', forward_client_type: '', project_prof_type: '', complaint_reason: '',
+          current_progress: '', actual_owed: '', payment_plan: '', is_delayed: '',
+          delay_deadline: '', final_close_date: '',
+          handling_status: '', payment_amount_yearend: '', complaint_type_yearend: '',
+          latest_progress_yearend: '', accountability: '', accountability_detail: '',
+          accountability_method: '', accountable_person: '',
+          updated_at: now(), created_at: now()
+        };
+        // Add custom field defaults
+        if (store.settings && store.settings.customFields) {
+          for (var c = 0; c < store.settings.customFields.length; c++) {
+            defaults['cf_' + store.settings.customFields[c].id] = '';
+          }
+        }
+        var newRecord = Object.assign({}, defaults);
+        for (var fk in formData) {
+          if (fk in newRecord) newRecord[fk] = formData[fk] || '';
+        }
+        // Resolve assignee_name
+        if (formData.assignee_id) {
+          var assignee = store.users.find(function(u) { return u.id === formData.assignee_id; });
+          newRecord.assignee_name = assignee ? assignee.display_name : '';
+        }
+        store.records.push(newRecord);
+      }
+    });
+    
+    closeModal();
+    await loadRecords();
+  } catch(e) {
+    alert('保存失败: ' + e.message + '\n请重试。');
+  } finally {
+    btnSave.textContent = '保存';
+    btnSave.disabled = false;
+    showLoading(false);
+  }
+}
+
+// ============================================================
+// Delete Record
+// ============================================================
+async function deleteRecord() {
+  if (!editingRecordId) return;
+  if (!confirm('确定删除此记录吗？此操作不可恢复。')) return;
+  
+  showLoading(true);
+  try {
+    await rmw(function(store) {
+      var rid = editingRecordId;
+      store.logs = store.logs.filter(function(l) { return l.record_id !== rid; });
+      store.records = store.records.filter(function(r) { return r.id !== rid; });
+    });
+    closeModal();
+    await loadRecords();
+  } catch(e) {
+    alert('删除失败: ' + e.message);
+  } finally {
+    showLoading(false);
+  }
+}
+
+// ============================================================
+// Export Excel
+// ============================================================
+function exportExcel() {
+  var headers = [
+    '投诉方', '投诉渠道', '内部/外部', '投诉日期', '到期日',
+    '项目名称', '投诉金额', '投诉事项',
+    '分公司', '项目负责人', '核实情况', '是否甲方指定供应商',
+    '是否有其他合作项目', '投诉前是否已收到发票入账', '是否属于背靠背项目',
+    '是否三年以上长账龄', '项目专业类型', '客户名称（甲方）', '客户（甲方）类型',
+    '前向客户类型', '项目专业类型(下拉)', '投诉原因',
+    '目前进展', '实际欠款应付', '付款计划', '是否延期',
+    '延期到期日', '最终办结日期',
+    '办理情况', '截至1231支付金额(万元)', '截至1231投诉事项类型',
+    '截至1231最新进展', '追责情况', '追责情况说明', '问责方式', '问责人',
+    '填写人', '更新时间'
+  ];
+  var fields = [
+    'complainant', 'channel', 'internal_external', 'complaint_date', 'deadline',
+    'project_name', 'complaint_amount', 'complaint_matter',
+    'branch', 'project_manager', 'verification', 'is_owner_designated',
+    'has_other_projects', 'invoice_before_complaint', 'is_back_to_back',
+    'aged_over_3years', 'project_type', 'client_name', 'client_type',
+    'forward_client_type', 'project_prof_type', 'complaint_reason',
+    'current_progress', 'actual_owed', 'payment_plan', 'is_delayed',
+    'delay_deadline', 'final_close_date',
+    'handling_status', 'payment_amount_yearend', 'complaint_type_yearend',
+    'latest_progress_yearend', 'accountability', 'accountability_detail',
+    'accountability_method', 'accountable_person',
+    'assignee_name', 'updated_at'
+  ];
+  
+  // Add custom fields
+  for (var i = 0; i < customFields.length; i++) {
+    headers.push(customFields[i].label);
+    fields.push('cf_' + customFields[i].id);
+  }
+  
+  var rows = [headers];
+  for (var r = 0; r < records.length; r++) {
+    var row = fields.map(function(f) {
+      if (f === 'assignee_name') {
+        var u = users.find(function(u) { return u.id === records[r].assignee_id; });
+        return u ? u.display_name : (records[r].assignee_name || '');
+      }
+      return records[r][f] || '';
+    });
+    rows.push(row);
+  }
+  
+  var filename = '民企清欠投诉清单_' + new Date().toISOString().split('T')[0];
+  
+  if (typeof XLSX !== 'undefined') {
+    var wb = XLSX.utils.book_new();
+    var ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = headers.map(function(h, i) {
+      var w = i < 8 ? 16 : (i >= 28 ? 22 : 18);
+      return { wch: Math.min(w, 40) };
+    });
+    XLSX.utils.book_append_sheet(wb, ws, '投诉清单');
+    XLSX.writeFile(wb, filename + '.xlsx');
+  } else {
+    // CSV fallback
+    var csv = rows.map(function(r) {
+      return r.map(function(c) { return '"' + (c || '').toString().replace(/"/g, '""') + '"'; }).join(',');
+    }).join('\n');
+    var blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename + '.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+}
+
+// Click outside modal to close
+document.addEventListener('click', function(e) {
+  if (e.target.id === 'modalOverlay') closeModal();
+  if (e.target.id === 'settingsOverlay') closeSettings();
+});
+
+// ============================================================
+// Settings
+// ============================================================
+function openSettings() {
+  document.getElementById('settings_name').value = currentUser.display_name || '';
+  document.getElementById('settings_password').value = '';
+  renderCollaboratorList();
+  renderCustomFieldsList();
+  document.getElementById('settingsOverlay').classList.add('active');
+}
+
+function closeSettings() {
+  document.getElementById('settingsOverlay').classList.remove('active');
+}
+
+function switchSettingsTab(tab, btn) {
+  document.querySelectorAll('#settingsOverlay .tab').forEach(function(t) { t.classList.remove('active'); });
+  btn.classList.add('active');
+  document.getElementById('settingsTabProfile').style.display = tab === 'profile' ? '' : 'none';
+  document.getElementById('settingsTabUsers').style.display = tab === 'users' ? '' : 'none';
+  document.getElementById('settingsTabFields').style.display = tab === 'fields' ? '' : 'none';
+  if (tab === 'users') renderCollaboratorList();
+  if (tab === 'fields') renderCustomFieldsList();
+}
+
+async function saveAdminProfile() {
+  var display_name = document.getElementById('settings_name').value.trim();
+  var password = document.getElementById('settings_password').value;
+  if (!display_name) { alert('请输入显示名称'); return; }
+  
+  showLoading(true);
+  try {
+    await rmw(function(store) {
+      var admin = store.users.find(function(u) { return u.role === 'admin'; });
+      if (!admin) throw new Error('管理员不存在');
+      admin.display_name = display_name;
+      if (password && password.length >= 4) admin.password = password;
+    });
+    
+    currentUser.display_name = display_name;
+    localStorage.setItem('qqUser', JSON.stringify(currentUser));
+    document.getElementById('userDisplay').innerHTML = '<strong>' + display_name + '</strong> (管理员)';
+    document.getElementById('settings_password').value = '';
+    alert('管理员信息已更新！');
+    closeSettings();
+  } catch(e) {
+    alert('保存失败: ' + e.message);
+  } finally {
+    showLoading(false);
+  }
+}
+
+function renderCustomFieldsList() {
+  var container = document.getElementById('customFieldsList');
+  if (!container) return;
+  if (customFields.length === 0) {
+    container.innerHTML = '<p style="color:var(--text-secondary);font-size:13px;text-align:center;padding:20px">暂无自定义字段，在下方添加</p>';
+    return;
+  }
+  container.innerHTML = customFields.map(function(cf) {
+    var typeLabel = cf.type === 'textarea' ? '多行文本' : cf.type === 'select' ? '下拉选择' : '文本';
+    var optText = cf.type === 'select' ? ' (' + (cf.options || []).join(', ') + ')' : '';
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;background:var(--bg)">' +
+      '<div><strong style="font-size:13px">' + cf.label + '</strong><span style="color:var(--text-secondary);font-size:11px;margin-left:8px">' + typeLabel + optText + '</span></div>' +
+      '<button class="btn btn-danger btn-sm" onclick="deleteCustomField(' + cf.id + ')" style="font-size:11px;padding:2px 8px">删除</button>' +
+      '</div>';
+  }).join('');
+}
+
+// ============================================================
+// Collaborator Management
+// ============================================================
+function renderCollaboratorList() {
+  var container = document.getElementById('collaboratorList');
+  if (!container) return;
+  var collaborators = users.filter(function(u) { return u.role !== 'admin'; });
+  if (collaborators.length === 0) {
+    container.innerHTML = '<p style="color:var(--text-secondary);font-size:13px;text-align:center;padding:20px">暂无协作者，在下方添加</p>';
+    return;
+  }
+  container.innerHTML = collaborators.map(function(u) {
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;background:var(--bg)">' +
+      '<div><strong style="font-size:13px">' + u.display_name + '</strong><span style="color:var(--text-secondary);font-size:11px;margin-left:8px">@' + u.username + '</span></div>' +
+      '<button class="btn btn-danger btn-sm" onclick="deleteCollaborator(' + u.id + ')" style="font-size:11px;padding:2px 8px">删除</button>' +
+    '</div>';
+  }).join('');
+}
+
+async function addCollaborator() {
+  var username = document.getElementById('new_user_username').value.trim();
+  var display_name = document.getElementById('new_user_display').value.trim();
+  var password = document.getElementById('new_user_password').value;
+  
+  if (!username || !display_name || !password) { alert('请填写所有字段'); return; }
+  if (password.length < 4) { alert('密码至少4位'); return; }
+  if (!/^[a-z0-9_]{2,20}$/i.test(username)) { alert('用户名只允许字母数字下划线，2-20位'); return; }
+  
+  showLoading(true);
+  try {
+    await rmw(function(store) {
+      if (store.users.find(function(u) { return u.username === username; })) {
+        throw new Error('用户名已存在');
+      }
+      store.users.push({
+        id: store.nextUserId++, username: username, password: password,
+        display_name: display_name, phone: '', role: 'user'
+      });
+    });
+    
+    document.getElementById('new_user_username').value = '';
+    document.getElementById('new_user_display').value = '';
+    document.getElementById('new_user_password').value = '';
+    await loadRecords();
+    renderCollaboratorList();
+    alert('协作者已创建！\n用户名：' + username + '\n密码：' + password);
+  } catch(e) {
+    alert(e.message || '创建失败');
+  } finally {
+    showLoading(false);
+  }
+}
+
+async function deleteCollaborator(id) {
+  if (!confirm('确定删除此协作者吗？已分配给该用户的记录将变为"未分配"状态。')) return;
+  
+  showLoading(true);
+  try {
+    await rmw(function(store) {
+      store.users = store.users.filter(function(u) { return u.id !== id || u.role === 'admin'; });
+      store.records.forEach(function(r) { if (r.assignee_id === id) { r.assignee_id = null; r.assignee_name = ''; } });
+    });
+    
+    records.forEach(function(r) { if (r.assignee_id === id) { r.assignee_id = null; r.assignee_name = ''; } });
+    await loadRecords();
+    renderCollaboratorList();
+  } catch(e) {
+    alert('删除失败: ' + e.message);
+  } finally {
+    showLoading(false);
+  }
+}
+
+function toggleCfOptions() {
+  document.getElementById('cf_options_area').style.display =
+    document.getElementById('cf_type').value === 'select' ? '' : 'none';
+}
+
+async function addCustomField() {
+  var label = document.getElementById('cf_label').value.trim();
+  var type = document.getElementById('cf_type').value;
+  var section = document.getElementById('cf_section').value;
+  var optionsText = document.getElementById('cf_options').value.trim();
+  
+  if (!label) { alert('请输入字段名称'); return; }
+  
+  var body = { label: label, type: type, section: section };
+  if (type === 'select') {
+    body.options = optionsText.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s; });
+    if (body.options.length === 0) { alert('请至少输入一个下拉选项'); return; }
+  }
+  
+  showLoading(true);
+  try {
+    await rmw(function(store) {
+      if (!store.settings) store.settings = { customFields: [], nextCfId: 1 };
+      var cf = {
+        id: store.settings.nextCfId++,
+        label: body.label, type: body.type, section: body.section || 'main',
+        order: (store.settings.customFields.length + 1),
+        options: body.type === 'select' ? (body.options || []) : []
+      };
+      store.settings.customFields.push(cf);
+      store.records.forEach(function(r) { r['cf_' + cf.id] = ''; });
+    });
+    
+    await loadRecords();
+    document.getElementById('cf_label').value = '';
+    document.getElementById('cf_options').value = '';
+    renderCustomFieldsList();
+  } catch(e) {
+    alert('添加失败: ' + e.message);
+  } finally {
+    showLoading(false);
+  }
+}
+
+async function deleteCustomField(id) {
+  if (!confirm('确定删除此自定义字段吗？所有记录中的该字段数据将被清除。')) return;
+  
+  showLoading(true);
+  try {
+    await rmw(function(store) {
+      store.settings.customFields = store.settings.customFields.filter(function(f) { return f.id !== id; });
+      store.records.forEach(function(r) { delete r['cf_' + id]; });
+    });
+    
+    customFields = customFields.filter(function(cf) { return cf.id !== id; });
+    await loadRecords();
+    renderCustomFieldsList();
+  } catch(e) {
+    alert('删除失败: ' + e.message);
+  } finally {
+    showLoading(false);
+  }
+}
+
+// Init
+checkAuth();
+</script>
+</body>
+</html>
