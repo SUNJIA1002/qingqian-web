@@ -124,11 +124,44 @@ tbody td {
   padding: 10px 12px; font-size: 13px; border-bottom: 1px solid rgba(51,65,85,0.5);
   max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-tbody tr { transition: background .2s; cursor: pointer; }
+tbody tr { transition: background .2s; }
 tbody tr:hover { background: rgba(59,130,246,0.08); }
 tbody tr.overdue-row { background: var(--overdue-bg); }
 tbody tr.warning-row { background: var(--warning-bg); }
 tbody tr.completed-row { opacity: 0.7; }
+tbody tr.selected-row { background: rgba(59,130,246,0.18) !important; }
+th.check-col, td.check-col { width: 40px; text-align: center; padding: 8px 6px !important; cursor: default; }
+td.check-col { cursor: pointer; }
+td.check-col input { cursor: pointer; width: 14px; height: 14px; accent-color: var(--primary); }
+
+/* Batch toolbar */
+.batch-toolbar {
+  display: none; align-items: center; gap: 12px;
+  padding: 10px 20px; background: rgba(59,130,246,0.12);
+  border-bottom: 1px solid var(--primary);
+}
+.batch-toolbar.active { display: flex; }
+.batch-toolbar .batch-info { font-size: 13px; color: var(--text); }
+.batch-toolbar .batch-info strong { color: var(--primary); }
+.batch-toolbar .btn-batch {
+  padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer;
+  font-size: 13px; font-weight: 500; transition: all .2s;
+}
+.batch-toolbar .btn-batch-danger { background: var(--danger); color: #fff; }
+.batch-toolbar .btn-batch-danger:hover { background: #dc2626; }
+.batch-toolbar .btn-batch-info { background: var(--info); color: #fff; }
+.batch-toolbar .btn-batch-info:hover { opacity: 0.85; }
+.batch-toolbar .btn-batch-cancel { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
+.batch-toolbar .btn-batch-cancel:hover { color: var(--text); border-color: var(--text); }
+
+/* Batch stats modal */
+.stats-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 20px; }
+.stats-item {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+  padding: 16px; text-align: center;
+}
+.stats-item .stats-val { font-size: 24px; font-weight: 700; color: var(--primary); }
+.stats-item .stats-label { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
 
 .status-badge {
   display: inline-block; padding: 2px 8px; border-radius: 4px;
@@ -283,7 +316,14 @@ tbody tr.completed-row { opacity: 0.7; }
         <button class="btn btn-primary btn-sm" onclick="openModal()" id="btnNewRecord" style="display:none">+ 新增记录</button>
       </div>
     </div>
-    <div style="overflow-x:auto">
+    <div class="batch-toolbar" id="batchToolbar">
+      <input type="checkbox" id="selectAll" onchange="toggleSelectAll(this.checked)" style="width:14px;height:14px;accent-color:var(--primary);cursor:pointer" title="全选/取消全选">
+      <span class="batch-info">已选 <strong id="batchCount">0</strong> 条</span>
+      <button class="btn-batch btn-batch-info" onclick="batchStats()">📊 统计分析</button>
+      <button class="btn-batch btn-batch-danger" onclick="batchDelete()">🗑 批量删除</button>
+      <button class="btn-batch btn-batch-cancel" onclick="clearSelection()">取消选择</button>
+    </div>
+    <div style="overflow-x:auto">">
       <table>
         <thead id="tableHead">
         </thead>
@@ -389,6 +429,17 @@ tbody tr.completed-row { opacity: 0.7; }
         </div>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- Batch Stats Modal -->
+<div class="modal-overlay" id="batchStatsOverlay">
+  <div class="modal" style="max-width:750px">
+    <div class="modal-header">
+      <h3 id="batchStatsTitle">选中记录统计分析</h3>
+      <button class="modal-close" onclick="document.getElementById('batchStatsOverlay').classList.remove('active')">&times;</button>
+    </div>
+    <div class="modal-body" id="batchStatsBody"></div>
   </div>
 </div>
 
@@ -671,9 +722,11 @@ function setTypeFilter(type, btn) {
   renderTable();
 }
 
+var selectedIds = new Set();
+
 function renderTable() {
   document.getElementById('tableHead').innerHTML =
-    '<tr><th>序号</th><th>投诉方</th><th>内/外</th><th>投诉事项</th>' +
+    '<tr><th class="check-col"><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this.checked)" title="全选/取消全选"></th><th>序号</th><th>投诉方</th><th>内/外</th><th>投诉事项</th>' +
     '<th>项目名称</th><th>投诉金额</th><th>到期日</th><th>状态</th>' +
     '<th>填写人</th><th>办理情况</th><th>目前进展</th><th>更新时间</th>' +
     customFields.map(function(cf) { return '<th>' + cf.label + '</th>'; }).join('') +
@@ -701,26 +754,182 @@ function renderTable() {
   tbody.innerHTML = filtered.map(function(r, i) {
     var status = getStatus(r);
     var rowClass = status === 'overdue' ? 'overdue-row' : status === 'warning' ? 'warning-row' : status === 'completed' ? 'completed-row' : '';
+    var isSelected = selectedIds.has(r.id);
+    if (isSelected) rowClass += ' selected-row';
     var ioe = r.internal_external || '-';
     var ioeBadge = ioe === '外部' ? '<span style="color:#f59e0b;font-weight:600">外部</span>' :
                    ioe === '内部' ? '<span style="color:#06b6d4;font-weight:600">内部</span>' :
                    '<span style="color:var(--text-secondary)">-</span>';
-    return '<tr class="' + rowClass + '" onclick="openModal(' + r.id + ')">' +
-      '<td>' + (i+1) + '</td>' +
-      '<td>' + (r.complainant || '-') + '</td>' +
-      '<td>' + ioeBadge + '</td>' +
-      '<td title="' + (r.complaint_matter || '') + '">' + (r.complaint_matter || '-').substring(0, 20) + '</td>' +
-      '<td>' + (r.project_name || '-') + '</td>' +
-      '<td>' + (r.complaint_amount || '-') + '</td>' +
-      '<td>' + (r.deadline || '-') + '</td>' +
-      '<td><span class="status-badge status-' + status + '">' + getStatusText(status) + '</span></td>' +
-      '<td>' + (r.assignee_name || '<span style="color:var(--warning)">未分配</span>') + '</td>' +
-      '<td>' + (r.handling_status || '-').substring(0,15) + '</td>' +
-      '<td>' + (r.current_progress || '-').substring(0,15) + '</td>' +
-      '<td>' + (r.updated_at ? r.updated_at.substring(5) : '-') + '</td>' +
-      customFields.map(function(cf) { return '<td>' + (r['cf_' + cf.id] || '-') + '</td>'; }).join('') +
+    return '<tr class="' + rowClass + '">' +
+      '<td class="check-col" onclick="event.stopPropagation();toggleSelect(' + r.id + ', this)">' +
+      '<input type="checkbox" ' + (isSelected ? 'checked' : '') + ' onclick="event.stopPropagation();toggleSelect(' + r.id + ', this.parentElement)"></td>' +
+      '<td onclick="openModal(' + r.id + ')">' + (i+1) + '</td>' +
+      '<td onclick="openModal(' + r.id + ')">' + (r.complainant || '-') + '</td>' +
+      '<td onclick="openModal(' + r.id + ')">' + ioeBadge + '</td>' +
+      '<td onclick="openModal(' + r.id + ')" title="' + (r.complaint_matter || '') + '">' + (r.complaint_matter || '-').substring(0, 20) + '</td>' +
+      '<td onclick="openModal(' + r.id + ')">' + (r.project_name || '-') + '</td>' +
+      '<td onclick="openModal(' + r.id + ')">' + (r.complaint_amount || '-') + '</td>' +
+      '<td onclick="openModal(' + r.id + ')">' + (r.deadline || '-') + '</td>' +
+      '<td onclick="openModal(' + r.id + ')"><span class="status-badge status-' + status + '">' + getStatusText(status) + '</span></td>' +
+      '<td onclick="openModal(' + r.id + ')">' + (r.assignee_name || '<span style="color:var(--warning)">未分配</span>') + '</td>' +
+      '<td onclick="openModal(' + r.id + ')">' + (r.handling_status || '-').substring(0,15) + '</td>' +
+      '<td onclick="openModal(' + r.id + ')">' + (r.current_progress || '-').substring(0,15) + '</td>' +
+      '<td onclick="openModal(' + r.id + ')">' + (r.updated_at ? r.updated_at.substring(5) : '-') + '</td>' +
+      customFields.map(function(cf) { return '<td onclick="openModal(' + r.id + ')">' + (r['cf_' + cf.id] || '-') + '</td>'; }).join('') +
       '</tr>';
   }).join('');
+  updateBatchUI();
+}
+
+// ============================================================
+// Batch operations - 批量选择/删除/统计
+// ============================================================
+function toggleSelect(id, cellEl) {
+  if (selectedIds.has(id)) {
+    selectedIds.delete(id);
+  } else {
+    selectedIds.add(id);
+  }
+  // Update the checkbox in this row without re-rendering everything
+  var cb = cellEl.querySelector('input[type=checkbox]');
+  if (cb) cb.checked = selectedIds.has(id);
+  var row = cellEl.parentElement;
+  if (selectedIds.has(id)) {
+    row.classList.add('selected-row');
+  } else {
+    row.classList.remove('selected-row');
+  }
+  updateBatchUI();
+}
+
+function toggleSelectAll(checked) {
+  var searchText = (document.getElementById('searchInput') && document.getElementById('searchInput').value || '').toLowerCase();
+  var filterStatus = (document.getElementById('filterStatus') && document.getElementById('filterStatus').value) || 'all';
+
+  records.forEach(function(r) {
+    if (typeFilter === '外部' && r.internal_external !== '外部') return;
+    if (typeFilter === '内部' && r.internal_external !== '内部') return;
+    var s = getStatus(r);
+    if (filterStatus === 'overdue' && s !== 'overdue') return;
+    if (filterStatus === 'upcoming' && s !== 'warning') return;
+    if (filterStatus === 'in-progress' && s !== 'normal' && s !== 'overdue' && s !== 'warning') return;
+    if (filterStatus === 'completed' && s !== 'completed') return;
+    if (searchText) {
+      var sf = [r.complaint_matter, r.project_name, r.complainant, r.complaint_amount, r.assignee_name || ''];
+      if (!sf.some(function(f) { return f.toLowerCase().indexOf(searchText) >= 0; })) return;
+    }
+    if (checked) { selectedIds.add(r.id); } else { selectedIds.delete(r.id); }
+  });
+  renderTable();
+}
+
+function clearSelection() {
+  selectedIds.clear();
+  renderTable();
+}
+
+function updateBatchUI() {
+  var toolbar = document.getElementById('batchToolbar');
+  var count = selectedIds.size;
+  if (count > 0) {
+    toolbar.classList.add('active');
+    toolbar.querySelector('#batchCount').textContent = count;
+  } else {
+    toolbar.classList.remove('active');
+  }
+}
+
+async function batchDelete() {
+  var count = selectedIds.size;
+  if (count === 0) return;
+  if (!confirm('确定要删除选中的 ' + count + ' 条记录吗？\n\n此操作不可撤销！')) return;
+  if (!confirm('再次确认：删除 ' + count + ' 条记录？')) return;
+
+  showLoading(true);
+  try {
+    await rmw(function(store) {
+      store.records = store.records.filter(function(r) { return !selectedIds.has(r.id); });
+    });
+    selectedIds.clear();
+    await loadRecords();
+    alert('已成功删除 ' + count + ' 条记录');
+  } catch(e) {
+    alert('删除失败: ' + (e.message || '未知错误'));
+  } finally {
+    showLoading(false);
+  }
+}
+
+function batchStats() {
+  var selectedRecords = records.filter(function(r) { return selectedIds.has(r.id); });
+  if (selectedRecords.length === 0) return;
+
+  // Aggregations
+  var total = selectedRecords.length;
+  var extCount = selectedRecords.filter(function(r) { return r.internal_external === '外部'; }).length;
+  var intCount = selectedRecords.filter(function(r) { return r.internal_external === '内部'; }).length;
+  var completedCount = selectedRecords.filter(function(r) { return getStatus(r) === 'completed'; }).length;
+  var overdueCount = selectedRecords.filter(function(r) { return getStatus(r) === 'overdue'; }).length;
+  var inProgressCount = total - completedCount - overdueCount;
+  var hasAssignee = selectedRecords.filter(function(r) { return r.assignee_name && r.assignee_name.trim(); }).length;
+
+  // Amount stats
+  var amounts = selectedRecords.map(function(r) {
+    var v = parseFloat(String(r.complaint_amount || '').replace(/[^0-9.]/g, ''));
+    return isNaN(v) ? 0 : v;
+  }).filter(function(v) { return v > 0; });
+  var sumAmount = amounts.reduce(function(a,b) { return a+b; }, 0);
+  var avgAmount = amounts.length > 0 ? sumAmount / amounts.length : 0;
+  var maxAmount = amounts.length > 0 ? Math.max.apply(null, amounts) : 0;
+  var minAmount = amounts.length > 0 ? Math.min.apply(null, amounts) : 0;
+
+  // Assignee distribution
+  var assigneeDist = {};
+  selectedRecords.forEach(function(r) {
+    var name = r.assignee_name || '未分配';
+    assigneeDist[name] = (assigneeDist[name] || 0) + 1;
+  });
+
+  // Client type distribution
+  var clientDist = {};
+  selectedRecords.forEach(function(r) {
+    var ct = r.client_type || '未知';
+    clientDist[ct] = (clientDist[ct] || 0) + 1;
+  });
+
+  var fmt = function(n) { return n.toLocaleString('zh-CN', {minimumFractionDigits:2,maximumFractionDigits:2}); };
+
+  var html = '<div class="stats-grid">' +
+    '<div class="stats-item"><div class="stats-val">' + total + '</div><div class="stats-label">选中记录数</div></div>' +
+    '<div class="stats-item"><div class="stats-val">' + extCount + ' / ' + intCount + '</div><div class="stats-label">外部 / 内部</div></div>' +
+    '<div class="stats-item"><div class="stats-val">' + completedCount + '</div><div class="stats-label">已办结</div></div>' +
+    '<div class="stats-item"><div class="stats-val">' + overdueCount + '</div><div class="stats-label">已逾期</div></div>' +
+    '</div>';
+
+  html += '<div class="stats-grid">' +
+    '<div class="stats-item"><div class="stats-val">¥' + fmt(sumAmount) + '</div><div class="stats-label">投诉金额合计</div></div>' +
+    '<div class="stats-item"><div class="stats-val">¥' + fmt(avgAmount) + '</div><div class="stats-label">平均金额</div></div>' +
+    '<div class="stats-item"><div class="stats-val">¥' + fmt(maxAmount) + '</div><div class="stats-label">最高金额</div></div>' +
+    '<div class="stats-item"><div class="stats-val">¥' + fmt(minAmount) + '</div><div class="stats-label">最低金额</div></div>' +
+    '</div>';
+
+  html += '<div class="form-section"><h4>填写人分布</h4>';
+  Object.keys(assigneeDist).forEach(function(k) {
+    html += '<div style="display:flex;justify-content:space-between;padding:6px 12px;border:1px solid var(--border);border-radius:6px;margin-bottom:4px">' +
+      '<span>' + k + '</span><strong>' + assigneeDist[k] + ' 条</strong></div>';
+  });
+  html += '</div>';
+
+  html += '<div class="form-section"><h4>客户类型分布</h4>';
+  Object.keys(clientDist).sort(function(a,b) { return clientDist[b] - clientDist[a]; }).forEach(function(k) {
+    html += '<div style="display:flex;justify-content:space-between;padding:6px 12px;border:1px solid var(--border);border-radius:6px;margin-bottom:4px">' +
+      '<span>' + k + '</span><strong>' + clientDist[k] + ' 条</strong></div>';
+  });
+  html += '</div>';
+
+  document.getElementById('batchStatsTitle').textContent = '选中 ' + total + ' 条记录 — 统计分析';
+  document.getElementById('batchStatsBody').innerHTML = html;
+  document.getElementById('batchStatsOverlay').classList.add('active');
 }
 
 // ============================================================
