@@ -972,6 +972,14 @@ var FIELD_OPTIONS = {
   is_back_to_back:         ['是', '否'],
   aged_over_3years:        ['是', '否'],
   is_delayed:              ['是', '否'],
+  is_cooperative:          ['是', '否'],
+  pre_litigation_comm:     ['是', '否'],
+  is_completed:            ['是', '否'],
+  accountability_doc_submitted: ['是', '否'],
+  debt_type: [
+    '欠薪', '工程款', '服务费', '质保金', '租赁费',
+    '采购款', '农民工工资', '分包款', '其他'
+  ],
   project_type: [
     '工程施工', '通信网络维护服务', '增值服务', '设施管理服务',
     '供应链服务', '系统集成', '其他', '工程设计', '软件开发',
@@ -1086,6 +1094,10 @@ function renderModal(record) {
         <div class="form-group"><label>投诉渠道</label><input id="edit_channel" value="' + (record.channel || '') + '" ' + ro + '></div>\
       </div>\
       <div class="form-row">\
+        <div class="form-group"><label>登记编号</label><input id="edit_registration_no" value="' + (record.registration_no || '') + '" ' + ro + '></div>\
+        <div class="form-group"><label>单位/省公司</label><input id="edit_unit" value="' + (record.unit || '') + '" ' + ro + '></div>\
+      </div>\
+      <div class="form-row">\
         <div class="form-group"><label>内部/外部</label>\
           <select id="edit_internal_external" ' + dis + '>\
             <option value="">-- 请选择 --</option>\
@@ -1102,6 +1114,13 @@ function renderModal(record) {
       <div class="form-row">\
         <div class="form-group"><label>投诉金额</label><input id="edit_complaint_amount" value="' + (record.complaint_amount || '') + '" ' + ro + '></div>\
         <div class="form-group"><label>投诉事项</label><input id="edit_complaint_matter" value="' + (record.complaint_matter || '') + '" ' + ro + '></div>\
+      </div>\
+      <div class="form-row">\
+        <div class="form-group"><label>被投诉方</label><input id="edit_respondent" value="' + (record.respondent || '') + '" ' + ro + '></div>\
+        <div class="form-group"><label>欠款类型</label>' + dropdownFor('debt_type', record.debt_type, !isAdmin) + '</div>\
+      </div>\
+      <div class="form-row">\
+        <div class="form-group"><label>合同金额</label><input id="edit_contract_amount" value="' + (record.contract_amount || '') + '" ' + ro + '></div>\
       </div>' +
       (isAdmin ? '\
       <div class="form-row">\
@@ -1170,6 +1189,34 @@ function renderModal(record) {
       <div class="form-row form-row-1">\
         <div class="form-group"><label class="blue-field">问责项目经理/项目负责人</label><input id="edit_accountable_person" value="' + (record.accountable_person || '') + '" ' + ce + '></div>\
       </div>\
+      <div class="form-row form-row-1">\
+        <div class="form-group"><label class="blue-field">核查报告</label><textarea id="edit_verification_report" ' + ce + ' rows="4">' + (record.verification_report || '') + '</textarea></div>\
+      </div>\
+      <div class="form-row">\
+        <div class="form-group"><label class="blue-field">是否为合作项目</label>' + dropdownFor('is_cooperative', record.is_cooperative, !canEdit) + '</div>\
+        <div class="form-group"><label class="blue-field">诉前是否有沟通</label>' + dropdownFor('pre_litigation_comm', record.pre_litigation_comm, !canEdit) + '</div>\
+      </div>\
+      <div class="form-row">\
+        <div class="form-group"><label class="blue-field">投诉人联系方式</label><input id="edit_complainant_contact" value="' + (record.complainant_contact || '') + '" ' + ce + '></div>\
+        <div class="form-group"><label class="blue-field">项目经理联系方式</label><input id="edit_project_manager_contact" value="' + (record.project_manager_contact || '') + '" ' + ce + '></div>\
+      </div>\
+      <div class="form-row">\
+        <div class="form-group"><label class="blue-field">分公司经理/联系方式</label><input id="edit_branch_manager_contact" value="' + (record.branch_manager_contact || '') + '" ' + ce + '></div>\
+        <div class="form-group"><label class="blue-field">是否已上报追责文件</label>' + dropdownFor('accountability_doc_submitted', record.accountability_doc_submitted, !canEdit) + '</div>\
+      </div>\
+      <div class="form-row">\
+        <div class="form-group"><label class="blue-field">问责人数</label><input id="edit_accountability_count" value="' + (record.accountability_count || '') + '" ' + ce + '></div>\
+        <div class="form-group"><label class="blue-field">是否已经完结</label>' + dropdownFor('is_completed', record.is_completed, !canEdit) + '</div>\
+      </div>\
+      <div class="form-row">\
+        <div class="form-group"><label class="blue-field">协商一致解决的方式</label><input id="edit_resolution_method" value="' + (record.resolution_method || '') + '" ' + ce + '></div>\
+      </div>\
+      <div class="form-row form-row-1">\
+        <div class="form-group"><label class="blue-field">涉事单位反馈</label><textarea id="edit_unit_feedback" ' + ce + ' rows="3">' + (record.unit_feedback || '') + '</textarea></div>\
+      </div>\
+      <div class="form-row form-row-1">\
+        <div class="form-group"><label class="blue-field">备注</label><textarea id="edit_remarks" ' + ce + ' rows="2">' + (record.remarks || '') + '</textarea></div>\
+      </div>\
     </div>' +
     (customFields.length > 0 ? '\
     <div class="form-section">\
@@ -1204,7 +1251,12 @@ async function saveRecord() {
     'forward_client_type', 'project_prof_type', 'complaint_reason', 'current_progress',
     'actual_owed', 'payment_plan', 'is_delayed', 'handling_status',
     'payment_amount_yearend', 'complaint_type_yearend', 'latest_progress_yearend',
-    'accountability', 'accountability_detail', 'accountability_method', 'accountable_person'
+    'accountability', 'accountability_detail', 'accountability_method', 'accountable_person',
+    'registration_no', 'unit', 'respondent', 'debt_type', 'contract_amount',
+    'verification_report', 'is_cooperative', 'pre_litigation_comm',
+    'complainant_contact', 'project_manager_contact', 'branch_manager_contact',
+    'accountability_doc_submitted', 'accountability_count', 'is_completed',
+    'resolution_method', 'unit_feedback', 'remarks'
   ];
   
   for (var i = 0; i < fields.length; i++) {
@@ -1235,7 +1287,11 @@ async function saveRecord() {
         'current_progress', 'actual_owed', 'payment_plan', 'is_delayed',
         'handling_status', 'payment_amount_yearend', 'complaint_type_yearend',
         'latest_progress_yearend', 'accountability', 'accountability_detail',
-        'accountability_method', 'accountable_person'
+        'accountability_method', 'accountable_person',
+        'verification_report', 'is_cooperative', 'pre_litigation_comm',
+        'complainant_contact', 'project_manager_contact', 'branch_manager_contact',
+        'accountability_doc_submitted', 'accountability_count', 'is_completed',
+        'resolution_method', 'unit_feedback', 'remarks'
       ];
       
       if (editingRecordId) {
@@ -1291,6 +1347,11 @@ async function saveRecord() {
           handling_status: '', payment_amount_yearend: '', complaint_type_yearend: '',
           latest_progress_yearend: '', accountability: '', accountability_detail: '',
           accountability_method: '', accountable_person: '',
+          registration_no: '', unit: '', respondent: '', debt_type: '', contract_amount: '',
+          verification_report: '', is_cooperative: '', pre_litigation_comm: '',
+          complainant_contact: '', project_manager_contact: '', branch_manager_contact: '',
+          accountability_doc_submitted: '', accountability_count: '', is_completed: '',
+          resolution_method: '', unit_feedback: '', remarks: '',
           updated_at: now(), created_at: now()
         };
         // Add custom field defaults
@@ -1351,8 +1412,8 @@ async function deleteRecord() {
 // ============================================================
 function exportExcel() {
   var headers = [
-    '投诉方', '投诉渠道', '内部/外部', '投诉日期', '到期日',
-    '项目名称', '投诉金额', '投诉事项',
+    '登记编号', '单位/省公司', '投诉方', '投诉渠道', '内部/外部', '投诉日期', '到期日',
+    '项目名称', '投诉金额', '被投诉方', '欠款类型', '合同金额', '投诉事项',
     '分公司', '项目负责人', '核实情况', '是否甲方指定供应商',
     '是否有其他合作项目', '投诉前是否已收到发票入账', '是否属于背靠背项目',
     '是否三年以上长账龄', '项目专业类型', '客户名称（甲方）', '客户（甲方）类型',
@@ -1361,11 +1422,15 @@ function exportExcel() {
     '延期到期日', '最终办结日期',
     '办理情况', '截至1231支付金额(万元)', '截至1231投诉事项类型',
     '截至1231最新进展', '追责情况', '追责情况说明', '问责方式', '问责人',
+    '核查报告', '是否为合作项目', '诉前是否有沟通',
+    '投诉人联系方式', '项目经理联系方式', '分公司经理/联系方式',
+    '是否已上报追责文件', '问责人数', '是否已经完结',
+    '协商一致解决的方式', '涉事单位反馈', '备注',
     '填写人', '更新时间'
   ];
   var fields = [
-    'complainant', 'channel', 'internal_external', 'complaint_date', 'deadline',
-    'project_name', 'complaint_amount', 'complaint_matter',
+    'registration_no', 'unit', 'complainant', 'channel', 'internal_external', 'complaint_date', 'deadline',
+    'project_name', 'complaint_amount', 'respondent', 'debt_type', 'contract_amount', 'complaint_matter',
     'branch', 'project_manager', 'verification', 'is_owner_designated',
     'has_other_projects', 'invoice_before_complaint', 'is_back_to_back',
     'aged_over_3years', 'project_type', 'client_name', 'client_type',
@@ -1375,6 +1440,10 @@ function exportExcel() {
     'handling_status', 'payment_amount_yearend', 'complaint_type_yearend',
     'latest_progress_yearend', 'accountability', 'accountability_detail',
     'accountability_method', 'accountable_person',
+    'verification_report', 'is_cooperative', 'pre_litigation_comm',
+    'complainant_contact', 'project_manager_contact', 'branch_manager_contact',
+    'accountability_doc_submitted', 'accountability_count', 'is_completed',
+    'resolution_method', 'unit_feedback', 'remarks',
     'assignee_name', 'updated_at'
   ];
   
