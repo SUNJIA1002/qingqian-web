@@ -410,38 +410,56 @@ const GH = {
 };
 
 function utf8ToB64(str) {
-  return btoa(unescape(encodeURIComponent(str)));
+  var bytes = new TextEncoder().encode(str);
+  var bin = '';
+  for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
 }
 function b64ToUtf8(b64) {
-  return decodeURIComponent(escape(atob(b64.replace(/\n/g, ''))));
+  var bin = atob(b64.replace(/\n/g, ''));
+  var bytes = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+
+function ghHeaders() {
+  return { 'Authorization': 'token ' + GH.token, 'Accept': 'application/vnd.github+json' };
+}
+
+function fetchTimed(url, options, ms) {
+  ms = ms || 20000;
+  var ctrl = new AbortController();
+  var t = setTimeout(function() { ctrl.abort(); }, ms);
+  return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).finally(function() { clearTimeout(t); });
 }
 
 async function ghLoadData() {
-  const res = await fetch(
-    `https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${GH.path}?ref=${GH.branch}`,
-    { headers: { 'Authorization': 'token ' + GH.token, 'Accept': 'application/vnd.github+json', 'User-Agent': 'qingqian-app' } }
+  var res = await fetchTimed(
+    'https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + GH.path + '?ref=' + GH.branch,
+    { headers: ghHeaders() }, 15000
   );
-  if (!res.ok) throw new Error('GitHub read failed: ' + res.status);
-  const file = await res.json();
-  const content = b64ToUtf8(file.content);
+  if (!res.ok) throw new Error('读取失败(HTTP ' + res.status + ')，请检查网络');
+  var file = await res.json();
+  var content = b64ToUtf8(file.content);
   return { data: JSON.parse(content), sha: file.sha };
 }
 
 async function ghSaveData(data, sha) {
-  const content = utf8ToB64(JSON.stringify(data, null, 2));
-  const res = await fetch(
-    `https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${GH.path}`,
+  var content = utf8ToB64(JSON.stringify(data, null, 2));
+  var res = await fetchTimed(
+    'https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + GH.path,
     {
       method: 'PUT',
-      headers: { 'Authorization': 'token ' + GH.token, 'Accept': 'application/vnd.github+json', 'User-Agent': 'qingqian-app', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: 'Update ' + now(), content, sha, branch: GH.branch })
-    }
+      headers: Object.assign({}, ghHeaders(), { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ message: 'Update ' + now(), content: content, sha: sha, branch: GH.branch })
+    }, 25000
   );
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || 'Save failed: ' + res.status);
+    var err = { message: '' };
+    try { err = await res.json(); } catch(ee) {}
+    throw new Error(err.message || '保存失败(HTTP ' + res.status + ')，请检查网络并重试');
   }
-  const result = await res.json();
+  var result = await res.json();
   return result.content.sha;
 }
 
