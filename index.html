@@ -520,6 +520,13 @@ async function rmw(modifyFn, maxRetries) {
   for (let i = 0; i < maxRetries; i++) {
     try {
       const { data, sha } = await ghLoadData();
+      // 数据完整性保护：确保关键计数器存在
+      if (!data.nextRecordId) data.nextRecordId = (data.records || []).reduce(function(max, r) { return (r.id && r.id > max) ? r.id : max; }, 0) + 1;
+      if (!data.nextUserId) data.nextUserId = (data.users || []).reduce(function(max, u) { return (u.id && u.id > max) ? u.id : max; }, 0) + 1;
+      if (!data.nextLogId) data.nextLogId = 1;
+      if (!data.nextCfId) data.nextCfId = 1;
+      if (!data.settings) data.settings = { customFields: [], nextCfId: 1 };
+      if (!data.logs) data.logs = [];
       modifyFn(data);
       await ghSaveData(data, sha);
       return;
