@@ -675,13 +675,13 @@ function init() {
   if (IS_DESKTOP) {
     document.getElementById('syncBadge').style.display = 'inline-flex';
     updateSyncBadge();
-    // Auto-refresh every 30s to catch cloud changes synced by server
+    // Auto-refresh every 15s to catch cloud changes synced by server
     setInterval(function() {
       if (!editingRecordId && !document.getElementById('modalOverlay').style.display.includes('flex')) {
         loadRecords(true);
         updateSyncBadge();
       }
-    }, 30000);
+    }, 15000);
   }
   loadRecords();
 }
@@ -1357,21 +1357,21 @@ async function saveRecord() {
   showLoading(true);
   
   try {
+    var COLLAB_FIELDS = [
+      'branch', 'project_manager', 'verification', 'is_owner_designated',
+      'has_other_projects', 'invoice_before_complaint', 'is_back_to_back',
+      'aged_over_3years', 'project_type', 'client_name', 'client_type',
+      'forward_client_type', 'project_prof_type', 'complaint_reason',
+      'current_progress', 'actual_owed', 'payment_plan', 'is_delayed',
+      'handling_status', 'payment_amount_yearend', 'complaint_type_yearend',
+      'latest_progress_yearend', 'accountability', 'accountability_detail',
+      'accountability_method', 'accountable_person',
+      'verification_report', 'is_cooperative', 'pre_litigation_comm',
+      'complainant_contact', 'project_manager_contact', 'branch_manager_contact',
+      'accountability_doc_submitted', 'accountability_count', 'is_completed',
+      'resolution_method', 'unit_feedback', 'remarks'
+    ];
     await rmw(function(store) {
-      var COLLAB_FIELDS = [
-        'branch', 'project_manager', 'verification', 'is_owner_designated',
-        'has_other_projects', 'invoice_before_complaint', 'is_back_to_back',
-        'aged_over_3years', 'project_type', 'client_name', 'client_type',
-        'forward_client_type', 'project_prof_type', 'complaint_reason',
-        'current_progress', 'actual_owed', 'payment_plan', 'is_delayed',
-        'handling_status', 'payment_amount_yearend', 'complaint_type_yearend',
-        'latest_progress_yearend', 'accountability', 'accountability_detail',
-        'accountability_method', 'accountable_person',
-        'verification_report', 'is_cooperative', 'pre_litigation_comm',
-        'complainant_contact', 'project_manager_contact', 'branch_manager_contact',
-        'accountability_doc_submitted', 'accountability_count', 'is_completed',
-        'resolution_method', 'unit_feedback', 'remarks'
-      ];
       
       if (editingRecordId) {
         var record = store.records.find(function(r) { return r.id === editingRecordId; });
@@ -1453,7 +1453,37 @@ async function saveRecord() {
     });
     
     closeModal();
-    await loadRecords();
+    
+    // 直接在内存中更新数据，不等 GitHub 缓存刷新（GitHub API 有 2-5 秒缓存延迟）
+    if (editingRecordId) {
+      var record = records.find(function(r) { return r.id === editingRecordId; });
+      if (record) {
+        var isAdmin = currentUser.role === 'admin';
+        var editable = isAdmin
+          ? Object.keys(record).filter(function(k) { return k !== 'id' && k !== 'created_at'; })
+          : COLLAB_FIELDS;
+        for (var i = 0; i < editable.length; i++) {
+          var key = editable[i];
+          if (formData[key] !== undefined) record[key] = formData[key] || '';
+        }
+        if (isAdmin && formData.assignee_id !== undefined) {
+          var assignee = users.find(function(u) { return u.id === formData.assignee_id; });
+          record.assignee_id = formData.assignee_id || null;
+          record.assignee_name = assignee ? assignee.display_name : '';
+        }
+        record.updated_at = now();
+        renderStats();
+        renderTable();
+      } else {
+        // 记录不在当前列表中（可能在另一台电脑创建的），回退到从 GitHub 加载
+        await new Promise(function(r) { setTimeout(r, 1500); });
+        await loadRecords();
+      }
+    } else {
+      // 新建记录：等待 GitHub 缓存刷新后再加载
+      await new Promise(function(r) { setTimeout(r, 2000); });
+      await loadRecords();
+    }
   } catch(e) {
     alert('保存失败: ' + e.message + '\n请重试。');
   } finally {
