@@ -319,7 +319,7 @@ td.check-col input { cursor: pointer; width: 14px; height: 14px; accent-color: v
     <div class="table-header">
       <h2>投诉记录列表</h2>
       <div class="table-controls">
-        <input class="search-input" type="text" placeholder="搜索投诉事项/项目名称..." oninput="renderTable()" id="searchInput">
+        <input class="search-input" type="text" placeholder="搜索投诉事项/项目名称..." oninput="renderTable()" id="searchInput" autocomplete="off">
         <select class="filter-select" onchange="renderTable()" id="filterStatus">
           <option value="all">全部状态</option>
           <option value="overdue">已逾期</option>
@@ -621,11 +621,11 @@ function showLogin() {
         <h2 style="text-align:center;margin-bottom:24px">民企清欠进度管理</h2>\
         <div style="margin-bottom:12px">\
           <label style="font-size:13px;color:var(--text-secondary)">用户名</label>\
-          <input id="loginUser" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);margin-top:4px" placeholder="请输入用户名">\
+          <input id="loginUser" autocomplete="username" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);margin-top:4px" placeholder="请输入用户名">\
         </div>\
         <div style="margin-bottom:16px">\
           <label style="font-size:13px;color:var(--text-secondary)">密码</label>\
-          <input id="loginPass" type="password" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);margin-top:4px" placeholder="请输入密码" onkeydown="if(event.key===\'Enter\')doLogin()">\
+          <input id="loginPass" type="password" autocomplete="current-password" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);margin-top:4px" placeholder="请输入密码" onkeydown="if(event.key===\'Enter\')doLogin()">\
         </div>\
         <button onclick="doLogin()" id="loginBtn" style="width:100%;padding:10px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px">登录</button>\
         <p style="text-align:center;margin-top:12px;font-size:12px;color:var(--text-secondary)">协作者账号由管理员在"系统设置 - 用户管理"中创建</p>\
@@ -683,6 +683,7 @@ function init() {
       }
     }, 30000);
   }
+  loadRecords();
 }
 
 function updateSyncBadge() {
@@ -1154,7 +1155,7 @@ function renderModal(record) {
       <div class="form-row">\
         <div class="form-group">\
           <label>指定填写人</label>\
-          <select id="edit_assignee_id">\
+          <select autocomplete="off" id="edit_assignee_id">\
             <option value="">-- 未分配 --</option>\
             ' + collabOptions + '\
           </select>\
@@ -1168,16 +1169,16 @@ function renderModal(record) {
     '<div class="form-section">\
       <h4>投诉基本信息 (管理员填写)</h4>\
       <div class="form-row">\
-        <div class="form-group"><label>投诉方</label><input id="edit_complainant" value="' + (record.complainant || '') + '" ' + ro + '></div>\
-        <div class="form-group"><label>投诉渠道</label><input id="edit_channel" value="' + (record.channel || '') + '" ' + ro + '></div>\
+        <div class="form-group"><label>投诉方</label><input autocomplete="off" id="edit_complainant" value="' + (record.complainant || '') + '" ' + ro + '></div>\
+        <div class="form-group"><label>投诉渠道</label><input autocomplete="off" id="edit_channel" value="' + (record.channel || '') + '" ' + ro + '></div>\
       </div>\
       <div class="form-row">\
-        <div class="form-group"><label>登记编号</label><input id="edit_registration_no" value="' + (record.registration_no || '') + '" ' + ro + '></div>\
-        <div class="form-group"><label>单位/省公司</label><input id="edit_unit" value="' + (record.unit || '') + '" ' + ro + '></div>\
+        <div class="form-group"><label>登记编号</label><input autocomplete="off" id="edit_registration_no" value="' + (record.registration_no || '') + '" ' + ro + '></div>\
+        <div class="form-group"><label>单位/省公司</label><input autocomplete="off" id="edit_unit" value="' + (record.unit || '') + '" ' + ro + '></div>\
       </div>\
       <div class="form-row">\
         <div class="form-group"><label>内部/外部</label>\
-          <select id="edit_internal_external" ' + dis + '>\
+          <select autocomplete="off" id="edit_internal_external" ' + dis + '>\
             <option value="">-- 请选择 --</option>\
             <option value="内部" ' + (record.internal_external === '内部' ? 'selected' : '') + '>内部</option>\
             <option value="外部" ' + (record.internal_external === '外部' ? 'selected' : '') + '>外部</option>\
@@ -1187,18 +1188,18 @@ function renderModal(record) {
       </div>\
       <div class="form-row">\
         <div class="form-group"><label>到期日</label><input type="date" id="edit_deadline" value="' + (record.deadline || '') + '" ' + ro + '></div>\
-        <div class="form-group"><label>项目名称</label><input id="edit_project_name" value="' + (record.project_name || '') + '" ' + ro + '></div>\
+        <div class="form-group"><label>项目名称</label><input autocomplete="off" id="edit_project_name" value="' + (record.project_name || '') + '" ' + ro + '></div>\
       </div>\
       <div class="form-row">\
-        <div class="form-group"><label>投诉金额</label><input id="edit_complaint_amount" value="' + (record.complaint_amount || '') + '" ' + ro + '></div>\
-        <div class="form-group"><label>投诉事项</label><input id="edit_complaint_matter" value="' + (record.complaint_matter || '') + '" ' + ro + '></div>\
+        <div class="form-group"><label>投诉金额</label><input autocomplete="off" id="edit_complaint_amount" value="' + (record.complaint_amount || '') + '" ' + ro + '></div>\
+        <div class="form-group"><label>投诉事项</label><input autocomplete="off" id="edit_complaint_matter" value="' + (record.complaint_matter || '') + '" ' + ro + '></div>\
       </div>\
       <div class="form-row">\
-        <div class="form-group"><label>被投诉方</label><input id="edit_respondent" value="' + (record.respondent || '') + '" ' + ro + '></div>\
+        <div class="form-group"><label>被投诉方</label><input autocomplete="off" id="edit_respondent" value="' + (record.respondent || '') + '" ' + ro + '></div>\
         <div class="form-group"><label>欠款类型</label>' + dropdownFor('debt_type', record.debt_type, !isAdmin) + '</div>\
       </div>\
       <div class="form-row">\
-        <div class="form-group"><label>合同金额</label><input id="edit_contract_amount" value="' + (record.contract_amount || '') + '" ' + ro + '></div>\
+        <div class="form-group"><label>合同金额</label><input autocomplete="off" id="edit_contract_amount" value="' + (record.contract_amount || '') + '" ' + ro + '></div>\
       </div>' +
       (isAdmin ? '\
       <div class="form-row">\
@@ -1210,15 +1211,15 @@ function renderModal(record) {
     '<div class="form-section">\
       <h4 style="color:var(--info)">核实与办理信息 (填写人填写)</h4>\
       <div class="form-row">\
-        <div class="form-group"><label class="blue-field">分公司</label><input id="edit_branch" value="' + (record.branch || '') + '" ' + ce + '></div>\
-        <div class="form-group"><label class="blue-field">项目负责人</label><input id="edit_project_manager" value="' + (record.project_manager || '') + '" ' + ce + '></div>\
+        <div class="form-group"><label class="blue-field">分公司</label><input autocomplete="off" id="edit_branch" value="' + (record.branch || '') + '" ' + ce + '></div>\
+        <div class="form-group"><label class="blue-field">项目负责人</label><input autocomplete="off" id="edit_project_manager" value="' + (record.project_manager || '') + '" ' + ce + '></div>\
       </div>\
       <div class="form-row form-row-1">\
-        <div class="form-group"><label class="blue-field">核实情况</label><textarea id="edit_verification" ' + ce + ' rows="3">' + (record.verification || '') + '</textarea></div>\
+        <div class="form-group"><label class="blue-field">核实情况</label><textarea autocomplete="off" id="edit_verification" ' + ce + ' rows="3">' + (record.verification || '') + '</textarea></div>\
       </div>\
       <div class="form-row">\
         <div class="form-group"><label class="blue-field">是否甲方指定供应商</label>' + dropdownFor('is_owner_designated', record.is_owner_designated, !canEdit) + '</div>\
-        <div class="form-group"><label class="blue-field">是否有其他合作项目</label><input id="edit_has_other_projects" value="' + (record.has_other_projects || '') + '" ' + ce + '></div>\
+        <div class="form-group"><label class="blue-field">是否有其他合作项目</label><input autocomplete="off" id="edit_has_other_projects" value="' + (record.has_other_projects || '') + '" ' + ce + '></div>\
       </div>\
       <div class="form-row">\
         <div class="form-group"><label class="blue-field">投诉前是否已收到发票入账</label>' + dropdownFor('invoice_before_complaint', record.invoice_before_complaint, !canEdit) + '</div>\
@@ -1229,7 +1230,7 @@ function renderModal(record) {
         <div class="form-group"><label class="blue-field">项目专业类型</label>' + dropdownFor('project_type', record.project_type, !canEdit) + '</div>\
       </div>\
       <div class="form-row">\
-        <div class="form-group"><label class="blue-field">客户名称（甲方）</label><input id="edit_client_name" value="' + (record.client_name || '') + '" ' + ce + '></div>\
+        <div class="form-group"><label class="blue-field">客户名称（甲方）</label><input autocomplete="off" id="edit_client_name" value="' + (record.client_name || '') + '" ' + ce + '></div>\
         <div class="form-group"><label class="blue-field">客户（甲方）类型</label>' + dropdownFor('client_type', record.client_type, !canEdit) + '</div>\
       </div>\
       <div class="form-row">\
@@ -1240,60 +1241,60 @@ function renderModal(record) {
         <div class="form-group"><label class="blue-field">投诉原因</label>' + dropdownFor('complaint_reason', record.complaint_reason, !canEdit) + '</div>\
       </div>\
       <div class="form-row form-row-1">\
-        <div class="form-group"><label class="blue-field">目前进展 (按周更新)</label><textarea id="edit_current_progress" ' + ce + ' rows="3">' + (record.current_progress || '') + '</textarea></div>\
+        <div class="form-group"><label class="blue-field">目前进展 (按周更新)</label><textarea autocomplete="off" id="edit_current_progress" ' + ce + ' rows="3">' + (record.current_progress || '') + '</textarea></div>\
       </div>\
       <div class="form-row">\
-        <div class="form-group"><label class="blue-field">实际欠款应付</label><input id="edit_actual_owed" value="' + (record.actual_owed || '') + '" ' + ce + '></div>\
-        <div class="form-group"><label class="blue-field">付款计划</label><input id="edit_payment_plan" value="' + (record.payment_plan || '') + '" ' + ce + '></div>\
+        <div class="form-group"><label class="blue-field">实际欠款应付</label><input autocomplete="off" id="edit_actual_owed" value="' + (record.actual_owed || '') + '" ' + ce + '></div>\
+        <div class="form-group"><label class="blue-field">付款计划</label><input autocomplete="off" id="edit_payment_plan" value="' + (record.payment_plan || '') + '" ' + ce + '></div>\
       </div>\
       <div class="form-row">\
         <div class="form-group"><label class="blue-field">是否延期</label>' + dropdownFor('is_delayed', record.is_delayed, !canEdit) + '</div>\
         <div class="form-group"><label class="blue-field">办理情况</label>' + dropdownFor('handling_status', record.handling_status, !canEdit) + '</div>\
       </div>\
       <div class="form-row">\
-        <div class="form-group"><label class="blue-field">截至1231投诉后支付金额(万元)</label><input id="edit_payment_amount_yearend" value="' + (record.payment_amount_yearend || '') + '" ' + ce + '></div>\
+        <div class="form-group"><label class="blue-field">截至1231投诉后支付金额(万元)</label><input autocomplete="off" id="edit_payment_amount_yearend" value="' + (record.payment_amount_yearend || '') + '" ' + ce + '></div>\
         <div class="form-group"><label class="blue-field">截至1231投诉事项类型</label>' + dropdownFor('complaint_type_yearend', record.complaint_type_yearend, !canEdit) + '</div>\
       </div>\
       <div class="form-row form-row-1">\
-        <div class="form-group"><label class="blue-field">截至1231最新进展 (300字内)</label><textarea id="edit_latest_progress_yearend" ' + ce + ' rows="3">' + (record.latest_progress_yearend || '') + '</textarea></div>\
+        <div class="form-group"><label class="blue-field">截至1231最新进展 (300字内)</label><textarea autocomplete="off" id="edit_latest_progress_yearend" ' + ce + ' rows="3">' + (record.latest_progress_yearend || '') + '</textarea></div>\
       </div>\
       <div class="form-row">\
         <div class="form-group"><label class="blue-field">追责情况</label>' + dropdownFor('accountability', record.accountability, !canEdit) + '</div>\
-        <div class="form-group"><label class="blue-field">问责方式</label><input id="edit_accountability_method" value="' + (record.accountability_method || '') + '" ' + ce + '></div>\
+        <div class="form-group"><label class="blue-field">问责方式</label><input autocomplete="off" id="edit_accountability_method" value="' + (record.accountability_method || '') + '" ' + ce + '></div>\
       </div>\
       <div class="form-row form-row-1">\
-        <div class="form-group"><label class="blue-field">追责情况说明</label><textarea id="edit_accountability_detail" ' + ce + ' rows="2">' + (record.accountability_detail || '') + '</textarea></div>\
+        <div class="form-group"><label class="blue-field">追责情况说明</label><textarea autocomplete="off" id="edit_accountability_detail" ' + ce + ' rows="2">' + (record.accountability_detail || '') + '</textarea></div>\
       </div>\
       <div class="form-row form-row-1">\
-        <div class="form-group"><label class="blue-field">问责项目经理/项目负责人</label><input id="edit_accountable_person" value="' + (record.accountable_person || '') + '" ' + ce + '></div>\
+        <div class="form-group"><label class="blue-field">问责项目经理/项目负责人</label><input autocomplete="off" id="edit_accountable_person" value="' + (record.accountable_person || '') + '" ' + ce + '></div>\
       </div>\
       <div class="form-row form-row-1">\
-        <div class="form-group"><label class="blue-field">核查报告</label><textarea id="edit_verification_report" ' + ce + ' rows="4">' + (record.verification_report || '') + '</textarea></div>\
+        <div class="form-group"><label class="blue-field">核查报告</label><textarea autocomplete="off" id="edit_verification_report" ' + ce + ' rows="4">' + (record.verification_report || '') + '</textarea></div>\
       </div>\
       <div class="form-row">\
         <div class="form-group"><label class="blue-field">是否为合作项目</label>' + dropdownFor('is_cooperative', record.is_cooperative, !canEdit) + '</div>\
         <div class="form-group"><label class="blue-field">诉前是否有沟通</label>' + dropdownFor('pre_litigation_comm', record.pre_litigation_comm, !canEdit) + '</div>\
       </div>\
       <div class="form-row">\
-        <div class="form-group"><label class="blue-field">投诉人联系方式</label><input id="edit_complainant_contact" value="' + (record.complainant_contact || '') + '" ' + ce + '></div>\
-        <div class="form-group"><label class="blue-field">项目经理联系方式</label><input id="edit_project_manager_contact" value="' + (record.project_manager_contact || '') + '" ' + ce + '></div>\
+        <div class="form-group"><label class="blue-field">投诉人联系方式</label><input autocomplete="off" id="edit_complainant_contact" value="' + (record.complainant_contact || '') + '" ' + ce + '></div>\
+        <div class="form-group"><label class="blue-field">项目经理联系方式</label><input autocomplete="off" id="edit_project_manager_contact" value="' + (record.project_manager_contact || '') + '" ' + ce + '></div>\
       </div>\
       <div class="form-row">\
-        <div class="form-group"><label class="blue-field">分公司经理/联系方式</label><input id="edit_branch_manager_contact" value="' + (record.branch_manager_contact || '') + '" ' + ce + '></div>\
+        <div class="form-group"><label class="blue-field">分公司经理/联系方式</label><input autocomplete="off" id="edit_branch_manager_contact" value="' + (record.branch_manager_contact || '') + '" ' + ce + '></div>\
         <div class="form-group"><label class="blue-field">是否已上报追责文件</label>' + dropdownFor('accountability_doc_submitted', record.accountability_doc_submitted, !canEdit) + '</div>\
       </div>\
       <div class="form-row">\
-        <div class="form-group"><label class="blue-field">问责人数</label><input id="edit_accountability_count" value="' + (record.accountability_count || '') + '" ' + ce + '></div>\
+        <div class="form-group"><label class="blue-field">问责人数</label><input autocomplete="off" id="edit_accountability_count" value="' + (record.accountability_count || '') + '" ' + ce + '></div>\
         <div class="form-group"><label class="blue-field">是否已经完结</label>' + dropdownFor('is_completed', record.is_completed, !canEdit) + '</div>\
       </div>\
       <div class="form-row">\
-        <div class="form-group"><label class="blue-field">协商一致解决的方式</label><input id="edit_resolution_method" value="' + (record.resolution_method || '') + '" ' + ce + '></div>\
+        <div class="form-group"><label class="blue-field">协商一致解决的方式</label><input autocomplete="off" id="edit_resolution_method" value="' + (record.resolution_method || '') + '" ' + ce + '></div>\
       </div>\
       <div class="form-row form-row-1">\
-        <div class="form-group"><label class="blue-field">涉事单位反馈</label><textarea id="edit_unit_feedback" ' + ce + ' rows="3">' + (record.unit_feedback || '') + '</textarea></div>\
+        <div class="form-group"><label class="blue-field">涉事单位反馈</label><textarea autocomplete="off" id="edit_unit_feedback" ' + ce + ' rows="3">' + (record.unit_feedback || '') + '</textarea></div>\
       </div>\
       <div class="form-row form-row-1">\
-        <div class="form-group"><label class="blue-field">备注</label><textarea id="edit_remarks" ' + ce + ' rows="2">' + (record.remarks || '') + '</textarea></div>\
+        <div class="form-group"><label class="blue-field">备注</label><textarea autocomplete="off" id="edit_remarks" ' + ce + ' rows="2">' + (record.remarks || '') + '</textarea></div>\
       </div>\
     </div>' +
     (customFields.length > 0 ? '\
@@ -1302,12 +1303,12 @@ function renderModal(record) {
       customFields.map(function(cf) {
         var val = record['cf_' + cf.id] || '';
         if (cf.type === 'textarea') {
-          return '<div class="form-group"><label>' + cf.label + '</label><textarea id="edit_cf_' + cf.id + '" ' + (canEdit ? '' : 'readonly') + '>' + val + '</textarea></div>';
+          return '<div class="form-group"><label>' + cf.label + '</label><textarea autocomplete="off" id="edit_cf_' + cf.id + '" ' + (canEdit ? '' : 'readonly') + '>' + val + '</textarea></div>';
         } else if (cf.type === 'select') {
           var opts = (cf.options || []).map(function(o) { return '<option value="' + o + '"' + (o === val ? ' selected' : '') + '>' + o + '</option>'; }).join('');
-          return '<div class="form-group"><label>' + cf.label + '</label><select id="edit_cf_' + cf.id + '"' + (canEdit ? '' : ' disabled') + '><option value="">-- 请选择 --</option>' + opts + '</select></div>';
+          return '<div class="form-group"><label>' + cf.label + '</label><select autocomplete="off" id="edit_cf_' + cf.id + '"' + (canEdit ? '' : ' disabled') + '><option value="">-- 请选择 --</option>' + opts + '</select></div>';
         } else {
-          return '<div class="form-group"><label>' + cf.label + '</label><input id="edit_cf_' + cf.id + '" value="' + val + '"' + (canEdit ? '' : ' readonly') + '></div>';
+          return '<div class="form-group"><label>' + cf.label + '</label><input autocomplete="off" id="edit_cf_' + cf.id + '" value="' + val + '"' + (canEdit ? '' : ' readonly') + '></div>';
         }
       }).join('') +
     '</div>' : '');
