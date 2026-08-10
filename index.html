@@ -1383,7 +1383,16 @@ async function saveRecord() {
         }
         
         var editable = isAdmin
-          ? Object.keys(record).filter(function(k) { return k !== 'id' && k !== 'created_at'; })
+          ? (function() {
+              // 合并记录已有key + fields + COLLAB_FIELDS，确保后期新增字段也能保存
+              var all = {};
+              Object.keys(record).forEach(function(k) { all[k] = true; });
+              fields.forEach(function(k) { all[k] = true; });
+              COLLAB_FIELDS.forEach(function(k) { all[k] = true; });
+              delete all.id;
+              delete all.created_at;
+              return Object.keys(all);
+            })()
           : COLLAB_FIELDS;
         
         for (var k = 0; k < editable.length; k++) {
@@ -1460,7 +1469,15 @@ async function saveRecord() {
       if (record) {
         var isAdmin = currentUser.role === 'admin';
         var editable = isAdmin
-          ? Object.keys(record).filter(function(k) { return k !== 'id' && k !== 'created_at'; })
+          ? (function() {
+              var all = {};
+              Object.keys(record).forEach(function(k) { all[k] = true; });
+              fields.forEach(function(k) { all[k] = true; });
+              COLLAB_FIELDS.forEach(function(k) { all[k] = true; });
+              delete all.id;
+              delete all.created_at;
+              return Object.keys(all);
+            })()
           : COLLAB_FIELDS;
         for (var i = 0; i < editable.length; i++) {
           var key = editable[i];
