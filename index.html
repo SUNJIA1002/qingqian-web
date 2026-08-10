@@ -63,6 +63,21 @@ body {
 }
 .btn-export:hover { background: #6d28d9; }
 
+/* Sync badge */
+.sync-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 20px; font-size: 12px;
+  border: 1px solid var(--border); cursor: default; white-space: nowrap;
+}
+.sync-badge.online { background: #064e3b33; color: #22c55e; border-color: #22c55e55; }
+.sync-badge.offline { background: #7f1d1d33; color: #ef4444; border-color: #ef444455; }
+.sync-badge .dot { width: 8px; height: 8px; border-radius: 50%; }
+.sync-badge.online .dot { background: #22c55e; }
+.sync-badge.offline .dot { background: #ef4444; }
+.sync-badge.syncing { background: #1e3a8a33; color: #60a5fa; border-color: #3b82f655; }
+.sync-badge.syncing .dot { background: #60a5fa; animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
 /* Type filter tabs */
 .type-filter {
   display: flex; gap: 6px; margin-bottom: 16px;
@@ -283,6 +298,7 @@ td.check-col input { cursor: pointer; width: 14px; height: 14px; accent-color: v
   <div class="header">
     <h1>民企清欠 <span>进度管理系统</span></h1>
     <div class="header-right">
+      <span class="sync-badge" id="syncBadge" style="display:none"></span>
       <span class="user-info" id="userDisplay"></span>
       <button class="btn btn-outline btn-sm" onclick="logout()">退出</button>
     </div>
@@ -460,6 +476,10 @@ const GH = {
   path: 'data.json'
 };
 
+// ============ Dual-mode: Desktop (offline) vs Web (GitHub API) ============
+var IS_DESKTOP = (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname === '0.0.0.0');
+var lastSyncInfo = { online: false, lastSync: null, pendingPush: false };
+
 function utf8ToB64(str) {
   var bytes = new TextEncoder().encode(str);
   var bin = '';
@@ -485,6 +505,15 @@ function fetchTimed(url, options, ms) {
 }
 
 async function ghLoadData() {
+  if (IS_DESKTOP) {
+    // Desktop mode: load from local server (works offline)
+    var res = await fetchTimed('/api/data', { headers: { 'Content-Type': 'application/json' } }, 10000);
+    if (!res.ok) throw new Error('读取本地数据失败(HTTP ' + res.status + ')');
+    var data = await res.json();
+    if (data._syncStatus) lastSyncInfo = data._syncStatus;
+    return { data: data, sha: 'desktop' };
+  }
+  // Web mode: load from GitHub API
   var res = await fetchTimed(
     'https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + GH.path + '?ref=' + GH.branch,
     { headers: ghHeaders() }, 15000
@@ -496,6 +525,23 @@ async function ghLoadData() {
 }
 
 async function ghSaveData(data, sha) {
+  if (IS_DESKTOP) {
+    // Desktop mode: save to local server (instant), server handles cloud sync
+    var res = await fetchTimed('/api/data', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    }, 25000);
+    if (!res.ok) {
+      var err = { message: '' };
+      try { err = await res.json(); } catch(ee) {}
+      throw new Error(err.error || '保存失败(HTTP ' + res.status + ')');
+    }
+    var result = await res.json();
+    if (result.syncStatus) lastSyncInfo = result.syncStatus;
+    return 'desktop';
+  }
+  // Web mode: save to GitHub API
   var content = utf8ToB64(JSON.stringify(data, null, 2));
   var res = await fetchTimed(
     'https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + GH.path,
@@ -583,6 +629,7 @@ function showLogin() {
         </div>\
         <button onclick="doLogin()" id="loginBtn" style="width:100%;padding:10px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px">登录</button>\
         <p style="text-align:center;margin-top:12px;font-size:12px;color:var(--text-secondary)">协作者账号由管理员在"系统设置 - 用户管理"中创建</p>\
+        ' + (IS_DESKTOP ? '<p style="text-align:center;margin-top:8px;font-size:11px;color:#22c55e">● 桌面版（离线可用，自动同步）</p>' : '<p style="text-align:center;margin-top:8px;font-size:11px;color:var(--text-secondary)">● 网页版（需联网）</p>') + '\
       </div>\
     </div>';
 }
@@ -624,15 +671,46 @@ function init() {
     document.getElementById('btnSettings').style.display = 'inline-block';
     document.getElementById('typeFilter').style.display = 'flex';
   }
-  loadRecords();
+  // Show sync badge on desktop mode
+  if (IS_DESKTOP) {
+    document.getElementById('syncBadge').style.display = 'inline-flex';
+    updateSyncBadge();
+    // Auto-refresh every 30s to catch cloud changes synced by server
+    setInterval(function() {
+      if (!editingRecordId && !document.getElementById('modalOverlay').style.display.includes('flex')) {
+        loadRecords(true);
+        updateSyncBadge();
+      }
+    }, 30000);
+  }
 }
 
-async function loadRecords() {
-  showLoading(true);
+function updateSyncBadge() {
+  var badge = document.getElementById('syncBadge');
+  if (!badge || !IS_DESKTOP) return;
+  if (lastSyncInfo.pendingPush) {
+    badge.className = 'sync-badge syncing';
+    badge.innerHTML = '<span class="dot"></span> 同步中...';
+  } else if (lastSyncInfo.online) {
+    var time = lastSyncInfo.lastSync ? lastSyncInfo.lastSync.substring(11) : '';
+    badge.className = 'sync-badge online';
+    badge.innerHTML = '<span class="dot"></span> 已同步' + (time ? ' ' + time : '');
+  } else {
+    badge.className = 'sync-badge offline';
+    badge.innerHTML = '<span class="dot"></span> 离线模式';
+  }
+}
+
+async function loadRecords(silent) {
+  if (!silent) showLoading(true);
   try {
     const { data } = await ghLoadData();
     users = data.users;
     customFields = (data.settings && data.settings.customFields) || [];
+    if (data._syncStatus) {
+      lastSyncInfo = data._syncStatus;
+      updateSyncBadge();
+    }
     
     let recs = data.records;
     if (currentUser.role !== 'admin') {
