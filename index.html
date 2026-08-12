@@ -416,7 +416,7 @@ td.check-col input { cursor: pointer; width: 14px; height: 14px; accent-color: v
         <div class="form-section">
           <h4>字段管理</h4>
           <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">
-            管理录入表单中的所有字段。可以隐藏不需要的字段、切换填写权限（管理员/协作人），或添加自定义字段。
+            管理录入表单中的所有字段：点击 ▲▼ 调整顺序，点击「编辑」修改名称/权限/选项，点击「删除」移除字段（内置字段删除后数据保留，自定义字段删除会清空该列数据）。也可以隐藏字段或切换填写权限。
           </p>
           
           <!-- Basic section fields -->
@@ -480,6 +480,60 @@ td.check-col input { cursor: pointer; width: 14px; height: 14px; accent-color: v
       <button class="modal-close" onclick="document.getElementById('batchStatsOverlay').classList.remove('active')">&times;</button>
     </div>
     <div class="modal-body" id="batchStatsBody"></div>
+  </div>
+</div>
+
+<!-- Field Edit Modal -->
+<div class="modal-overlay" id="fieldEditOverlay">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <h3>修改字段</h3>
+      <button class="modal-close" onclick="closeFieldEdit()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>字段名称</label>
+          <input id="fe_label" autocomplete="off" placeholder="如：备注说明">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>填写权限</label>
+          <select id="fe_editableBy">
+            <option value="admin">仅管理员填写</option>
+            <option value="collab">协作人可填</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>类型</label>
+          <select id="fe_type" onchange="feToggleOptions()">
+            <option value="text">文本</option>
+            <option value="textarea">多行文本</option>
+            <option value="select">下拉选择</option>
+            <option value="date">日期</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>所属区域</label>
+          <select id="fe_section">
+            <option value="basic">基本信息</option>
+            <option value="detail">核实与办理</option>
+            <option value="custom">自定义区域</option>
+          </select>
+        </div>
+      </div>
+      <div id="fe_options_area" style="display:none;margin-top:8px">
+        <label style="font-size:12px;color:var(--text-secondary)">下拉选项（每行一个）</label>
+        <textarea id="fe_options" rows="3" placeholder="选项A&#10;选项B&#10;选项C" style="width:100%"></textarea>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+        <button class="btn btn-sm" onclick="closeFieldEdit()">取消</button>
+        <button class="btn btn-primary btn-sm" onclick="saveFieldEdit()">保存修改</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -584,12 +638,23 @@ async function ghSaveData(data, sha) {
   return result.content.sha;
 }
 
-// Read-Modify-Write with retry for concurrent edits
+// Read-Modify-Write with retry for concurrent edits.
+// Uses a short-lived cache to avoid a redundant GET right after a successful PUT (halves latency on web).
+var rmwCache = { data: null, sha: null, at: 0 };
 async function rmw(modifyFn, maxRetries) {
   maxRetries = maxRetries || 3;
   for (let i = 0; i < maxRetries; i++) {
     try {
-      const { data, sha } = await ghLoadData();
+      // Reuse fresh cache (within 3s) to skip the GET round trip
+      let data, sha;
+      if (rmwCache.data && Date.now() - rmwCache.at < 3000) {
+        data = rmwCache.data;
+        sha = rmwCache.sha;
+      } else {
+        const loaded = await ghLoadData();
+        data = loaded.data;
+        sha = loaded.sha;
+      }
       // 数据完整性保护：确保关键计数器存在
       if (!data.nextRecordId) data.nextRecordId = (data.records || []).reduce(function(max, r) { return (r.id && r.id > max) ? r.id : max; }, 0) + 1;
       if (!data.nextUserId) data.nextUserId = (data.users || []).reduce(function(max, u) { return (u.id && u.id > max) ? u.id : max; }, 0) + 1;
@@ -598,6 +663,7 @@ async function rmw(modifyFn, maxRetries) {
       if (!data.settings) data.settings = { customFields: [], nextCfId: 1 };
       if (!data.settings.fieldConfig) {
         data.settings.fieldConfig = DEFAULT_FIELD_CONFIG.map(function(f) { return Object.assign({}, f); });
+        data.settings.fieldConfigUpdatedAt = now();
         if (data.settings.customFields && data.settings.customFields.length > 0) {
           for (var ci = 0; ci < data.settings.customFields.length; ci++) {
             var cf = data.settings.customFields[ci];
@@ -610,14 +676,66 @@ async function rmw(modifyFn, maxRetries) {
       }
       if (!data.logs) data.logs = [];
       modifyFn(data);
-      await ghSaveData(data, sha);
+      var newSha = await ghSaveData(data, sha);
+      // Update cache so the next rmw skips GET (web: saves ~1.5s)
+      rmwCache.data = data;
+      rmwCache.sha = newSha || sha;
+      rmwCache.at = Date.now();
       return;
     } catch(e) {
+      // On conflict (stale sha) or network failure: invalidate cache so next attempt re-GETs
+      rmwCache.data = null;
       if (i === maxRetries - 1) throw e;
       console.log('Retry ' + (i+1) + ': ' + e.message);
-      await new Promise(r => setTimeout(r, 500 * (i + 1)));
+      await new Promise(r => setTimeout(r, 700 * (i + 1)));
     }
   }
+}
+
+// Field-config operations: desktop hits the fast /api/settings endpoint (milliseconds),
+// web mode falls back to rmw (GitHub API).
+async function saveFieldConfig(modifySettingsFn) {
+  if (IS_DESKTOP) {
+    // Desktop: read fresh settings via /api/data (fast local), apply change, PUT /api/settings
+    var fresh = await fetchTimed('/api/data', { headers: { 'Content-Type': 'application/json' } }, 10000);
+    if (!fresh.ok) throw new Error('读取配置失败(HTTP ' + fresh.status + ')');
+    var full = await fresh.json();
+    var settings = full.settings || { customFields: [], nextCfId: 1 };
+    if (!settings.fieldConfig) {
+      settings.fieldConfig = DEFAULT_FIELD_CONFIG.map(function(f) { return Object.assign({}, f); });
+      settings.fieldConfigUpdatedAt = now();
+    }
+    if (!settings.customFields) settings.customFields = [];
+    if (!settings.nextCfId) settings.nextCfId = 1;
+    modifySettingsFn(settings);
+    settings.fieldConfigUpdatedAt = now(); // bump revision so it wins any merge
+    var res = await fetchTimed('/api/settings', {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify({ fieldConfig: settings.fieldConfig, customFields: settings.customFields, nextCfId: settings.nextCfId, fieldConfigUpdatedAt: settings.fieldConfigUpdatedAt })
+    }, 10000);
+    if (!res.ok) {
+      var err = {};
+      try { err = await res.json(); } catch(ee) {}
+      throw new Error(err.error || '保存配置失败(HTTP ' + res.status + ')');
+    }
+    // Update local state
+    fieldConfig = settings.fieldConfig;
+    customFields = settings.customFields || [];
+    // Make sure existing records carry the new/removed custom keys
+    records.forEach(function(r) {
+      settings.fieldConfig.forEach(function(f) { if (f.isCustom && r[f.key] === undefined) r[f.key] = ''; });
+    });
+    return;
+  }
+  // Web mode: rmw with cache + bump timestamp
+  await rmw(function(store) {
+    ensureFieldConfig(store);
+    if (!store.settings.fieldConfigUpdatedAt) store.settings.fieldConfigUpdatedAt = now();
+    modifySettingsFn(store.settings);
+    store.settings.fieldConfigUpdatedAt = now();
+  });
+  await loadRecords();
 }
 
 function now() { return new Date().toISOString().replace('T',' ').substring(0,19); }
@@ -871,11 +989,16 @@ function setTypeFilter(type, btn) {
 var selectedIds = new Set();
 
 function renderTable() {
-  var configCustomFields = getActiveFieldConfig().filter(function(f) { return f.section === 'custom' && f.visible !== false; });
+  var configAll = getActiveFieldConfig();
+  function fl(key, fallback) {
+    var f = configAll.find(function(x) { return x.key === key; });
+    return f ? f.label : fallback;
+  }
+  var configCustomFields = configAll.filter(function(f) { return f.section === 'custom' && f.visible !== false; });
   document.getElementById('tableHead').innerHTML =
-    '<tr><th class="check-col"><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this.checked)" title="全选/取消全选"></th><th>序号</th><th>投诉方</th><th>内/外</th><th>投诉事项</th>' +
-    '<th>项目名称</th><th>投诉金额</th><th>到期日</th><th>状态</th>' +
-    '<th>填写人</th><th>办理情况</th><th>目前进展</th><th>更新时间</th>' +
+    '<tr><th class="check-col"><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this.checked)" title="全选/取消全选"></th><th>序号</th><th>' + fl('complainant', '投诉方') + '</th><th>内/外</th><th>' + fl('complaint_matter', '投诉事项') + '</th>' +
+    '<th>' + fl('project_name', '项目名称') + '</th><th>' + fl('complaint_amount', '投诉金额') + '</th><th>' + fl('deadline', '到期日') + '</th><th>状态</th>' +
+    '<th>填写人</th><th>' + fl('handling_status', '办理情况') + '</th><th>' + fl('current_progress', '目前进展') + '</th><th>更新时间</th>' +
     configCustomFields.map(function(f) { return '<th>' + f.label + '</th>'; }).join('') +
     '</tr>';
   
@@ -1260,6 +1383,7 @@ function ensureFieldConfig(store) {
   if (!store.settings) store.settings = { customFields: [], nextCfId: 1 };
   if (!store.settings.fieldConfig) {
     store.settings.fieldConfig = DEFAULT_FIELD_CONFIG.map(function(f) { return Object.assign({}, f); });
+    store.settings.fieldConfigUpdatedAt = now();
     if (store.settings.customFields && store.settings.customFields.length > 0) {
       for (var i = 0; i < store.settings.customFields.length; i++) {
         var cf = store.settings.customFields[i];
@@ -1680,6 +1804,7 @@ function exportExcel() {
 document.addEventListener('click', function(e) {
   if (e.target.id === 'modalOverlay') closeModal();
   if (e.target.id === 'settingsOverlay') closeSettings();
+  if (e.target.id === 'fieldEditOverlay') closeFieldEdit();
 });
 
 // ============================================================
@@ -1747,27 +1872,31 @@ function renderFieldManagement() {
       container.innerHTML = '<p style="color:var(--text-secondary);font-size:12px;padding:8px">暂无字段</p>';
       continue;
     }
-    container.innerHTML = sectionFields.map(function(f) {
+    container.innerHTML = sectionFields.map(function(f, idx) {
       var visibleChecked = f.visible !== false ? 'checked' : '';
       var editableChecked = f.editableBy === 'collab' ? 'checked' : '';
       var typeLabel = f.type === 'textarea' ? '多行文本' : f.type === 'select' ? '下拉' : f.type === 'date' ? '日期' : '文本';
-      var deleteBtn = f.isCustom
-        ? '<button class="btn btn-danger btn-sm" onclick="deleteCustomField(\'' + f.key + '\')" style="font-size:11px;padding:2px 8px">删除</button>'
-        : '';
+      var canUp = idx > 0 ? '' : ' style="opacity:.35;pointer-events:none"';
+      var canDown = idx < sectionFields.length - 1 ? '' : ' style="opacity:.35;pointer-events:none"';
       
       return '<div class="cf-item">' +
         '<div style="flex:1;min-width:0">' +
-          '<strong style="font-size:13px">' + f.label + '</strong>' +
+          '<strong style="font-size:13px;cursor:pointer" onclick="editField(\'' + f.key + '\')" title="点击编辑字段">' + f.label + '</strong>' +
           '<span style="color:var(--text-secondary);font-size:11px;margin-left:8px">' + typeLabel + '</span>' +
         '</div>' +
-        '<div style="display:flex;gap:12px;align-items:center;flex-shrink:0">' +
-          '<label style="font-size:11px;cursor:pointer;display:flex;align-items:center;gap:4px;white-space:nowrap">' +
+        '<div style="display:flex;gap:8px;align-items:center;flex-shrink:0">' +
+          '<div style="display:flex;flex-direction:column;gap:2px">' +
+            '<button class="btn btn-sm" onclick="moveField(\'' + f.key + '\', -1)"' + canUp + ' title="上移" style="font-size:10px;padding:0 6px;line-height:16px">▲</button>' +
+            '<button class="btn btn-sm" onclick="moveField(\'' + f.key + '\', 1)"' + canDown + ' title="下移" style="font-size:10px;padding:0 6px;line-height:16px">▼</button>' +
+          '</div>' +
+          '<label style="font-size:11px;cursor:pointer;display:flex;align-items:center;gap:3px;white-space:nowrap">' +
             '<input type="checkbox" ' + visibleChecked + ' onchange="toggleFieldVisible(\'' + f.key + '\', this.checked)" style="width:14px;height:14px;accent-color:var(--primary)">显示' +
           '</label>' +
-          '<label style="font-size:11px;cursor:pointer;display:flex;align-items:center;gap:4px;white-space:nowrap">' +
+          '<label style="font-size:11px;cursor:pointer;display:flex;align-items:center;gap:3px;white-space:nowrap">' +
             '<input type="checkbox" ' + editableChecked + ' onchange="toggleFieldEditable(\'' + f.key + '\', this.checked)" style="width:14px;height:14px;accent-color:var(--info)">协作人可填' +
           '</label>' +
-          deleteBtn +
+          '<button class="btn btn-sm" onclick="editField(\'' + f.key + '\')" title="修改字段" style="font-size:11px;padding:2px 8px">编辑</button>' +
+          '<button class="btn btn-danger btn-sm" onclick="deleteField(\'' + f.key + '\')" style="font-size:11px;padding:2px 8px">删除</button>' +
         '</div>' +
       '</div>';
     }).join('');
@@ -1777,16 +1906,11 @@ function renderFieldManagement() {
 async function toggleFieldVisible(key, visible) {
   showLoading(true);
   try {
-    await rmw(function(store) {
-      ensureFieldConfig(store);
-      var field = store.settings.fieldConfig.find(function(f) { return f.key === key; });
+    await saveFieldConfig(function(settings) {
+      var field = settings.fieldConfig.find(function(f) { return f.key === key; });
       if (field) field.visible = visible;
     });
-    // 更新本地 fieldConfig
-    var config = getActiveFieldConfig();
-    var field = config.find(function(f) { return f.key === key; });
-    if (field) field.visible = visible;
-    fieldConfig = config;
+    renderFieldManagement();
   } catch(e) {
     alert('保存失败: ' + e.message);
     renderFieldManagement(); // revert UI
@@ -1798,15 +1922,11 @@ async function toggleFieldVisible(key, visible) {
 async function toggleFieldEditable(key, collabEditable) {
   showLoading(true);
   try {
-    await rmw(function(store) {
-      ensureFieldConfig(store);
-      var field = store.settings.fieldConfig.find(function(f) { return f.key === key; });
+    await saveFieldConfig(function(settings) {
+      var field = settings.fieldConfig.find(function(f) { return f.key === key; });
       if (field) field.editableBy = collabEditable ? 'collab' : 'admin';
     });
-    var config = getActiveFieldConfig();
-    var field = config.find(function(f) { return f.key === key; });
-    if (field) field.editableBy = collabEditable ? 'collab' : 'admin';
-    fieldConfig = config;
+    renderFieldManagement();
   } catch(e) {
     alert('保存失败: ' + e.message);
     renderFieldManagement();
@@ -1913,26 +2033,24 @@ async function addCustomField() {
   showLoading(true);
   try {
     var newKey = '';
-    await rmw(function(store) {
-      ensureFieldConfig(store);
-      if (!store.settings.customFields) store.settings.customFields = [];
-      if (!store.settings.nextCfId) store.settings.nextCfId = 1;
+    await saveFieldConfig(function(settings) {
+      if (!settings.customFields) settings.customFields = [];
+      if (!settings.nextCfId) settings.nextCfId = 1;
       
-      var cfId = store.settings.nextCfId++;
+      var cfId = settings.nextCfId++;
       newKey = 'cf_' + cfId;
       
       // 添加到 customFields（向后兼容）
-      var cf = {
+      settings.customFields.push({
         id: cfId,
         label: body.label, type: body.type,
         section: body.section || 'custom',
-        order: (store.settings.customFields.length + 1),
+        order: (settings.customFields.length + 1),
         options: body.type === 'select' ? (body.options || []) : []
-      };
-      store.settings.customFields.push(cf);
+      });
       
       // 同时添加到 fieldConfig
-      store.settings.fieldConfig.push({
+      settings.fieldConfig.push({
         key: newKey,
         label: body.label,
         type: body.type,
@@ -1943,12 +2061,10 @@ async function addCustomField() {
         isCustom: true,
         cfId: cfId
       });
-      
-      // 给所有现有记录添加空默认值
-      store.records.forEach(function(r) { r[newKey] = ''; });
     });
     
-    await loadRecords();
+    // 给本地所有记录添加空默认值
+    records.forEach(function(r) { r[newKey] = ''; });
     document.getElementById('cf_label').value = '';
     document.getElementById('cf_options').value = '';
     renderFieldManagement();
@@ -1959,31 +2075,145 @@ async function addCustomField() {
   }
 }
 
-async function deleteCustomField(key) {
-  if (!confirm('确定删除此自定义字段吗？所有记录中的该字段数据将被清除。')) return;
+// 删除字段：内置字段仅从配置移除（保留记录数据）；自定义字段可选择一并清除数据
+async function deleteField(key) {
+  var config = getActiveFieldConfig();
+  var field = config.find(function(f) { return f.key === key; });
+  if (!field) return;
+  
+  var msg = field.isCustom
+    ? '确定删除自定义字段「' + field.label + '」吗？\n记录中该字段的数据将被清除，且不可恢复！'
+    : '确定删除内置字段「' + field.label + '」吗？\n该字段将从表单/表格/导出中移除，记录中已有数据将保留。';
+  if (!confirm(msg)) return;
   
   showLoading(true);
   try {
-    await rmw(function(store) {
-      ensureFieldConfig(store);
+    await saveFieldConfig(function(settings) {
       // 从 fieldConfig 中删除
-      store.settings.fieldConfig = store.settings.fieldConfig.filter(function(f) { return f.key !== key; });
-      // 从 customFields 中删除（向后兼容）
-      var cfId = parseInt(key.replace('cf_', ''));
-      if (cfId) {
-        store.settings.customFields = (store.settings.customFields || []).filter(function(f) { return f.id !== cfId; });
+      settings.fieldConfig = settings.fieldConfig.filter(function(f) { return f.key !== key; });
+      if (field.isCustom) {
+        // 从 customFields 中删除
+        var cfId = parseInt(key.replace('cf_', ''));
+        if (cfId) {
+          settings.customFields = (settings.customFields || []).filter(function(f) { return f.id !== cfId; });
+        }
       }
-      // 从所有记录中删除该字段数据
-      store.records.forEach(function(r) { delete r[key]; });
     });
-    
-    await loadRecords();
+    // 自定义字段：清除记录数据；内置字段：保留数据
+    if (field.isCustom) {
+      records.forEach(function(r) { delete r[key]; });
+    }
     renderFieldManagement();
+    renderTable();
   } catch(e) {
     alert('删除失败: ' + e.message);
   } finally {
     showLoading(false);
   }
+}
+
+// 字段排序：在同一区域内上移/下移
+async function moveField(key, dir) {
+  var config = getActiveFieldConfig();
+  var field = config.find(function(f) { return f.key === key; });
+  if (!field) return;
+  var sectionFields = config.filter(function(f) { return f.section === field.section; });
+  var idx = sectionFields.findIndex(function(f) { return f.key === key; });
+  var target = idx + dir;
+  if (idx < 0 || target < 0 || target >= sectionFields.length) return;
+  
+  showLoading(true);
+  try {
+    await saveFieldConfig(function(settings) {
+      var list = settings.fieldConfig;
+      var i = list.findIndex(function(f) { return f.key === key; });
+      if (i < 0) return;
+      var section = list[i].section;
+      // 在同 section 内找相邻字段
+      var j = i + dir;
+      while (j >= 0 && j < list.length && list[j].section !== section) j += dir;
+      if (j < 0 || j >= list.length) return;
+      var tmp = list[i]; list[i] = list[j]; list[j] = tmp;
+    });
+    renderFieldManagement();
+  } catch(e) {
+    alert('排序失败: ' + e.message);
+    renderFieldManagement();
+  } finally {
+    showLoading(false);
+  }
+}
+
+// ============ 编辑字段弹窗 ============
+var editingFieldKey = null;
+function editField(key) {
+  var config = getActiveFieldConfig();
+  var field = config.find(function(f) { return f.key === key; });
+  if (!field) return;
+  editingFieldKey = key;
+  
+  document.getElementById('fe_label').value = field.label;
+  document.getElementById('fe_editableBy').value = field.editableBy || 'collab';
+  document.getElementById('fe_type').value = field.type || 'text';
+  document.getElementById('fe_type').disabled = !field.isCustom; // 内置字段类型不可改
+  document.getElementById('fe_section').value = field.section || 'custom';
+  document.getElementById('fe_section').disabled = !field.isCustom;
+  document.getElementById('fe_options').value = (field.options || []).join('\n');
+  document.getElementById('fe_options_area').style.display = field.type === 'select' ? '' : 'none';
+  document.getElementById('fieldEditOverlay').classList.add('active');
+}
+
+function feToggleOptions() {
+  document.getElementById('fe_options_area').style.display =
+    document.getElementById('fe_type').value === 'select' ? '' : 'none';
+}
+
+async function saveFieldEdit() {
+  var label = document.getElementById('fe_label').value.trim();
+  if (!label) { alert('请输入字段名称'); return; }
+  
+  var config = getActiveFieldConfig();
+  var field = config.find(function(f) { return f.key === editingFieldKey; });
+  if (!field) return;
+  
+  var newType = field.isCustom ? document.getElementById('fe_type').value : field.type;
+  var newSection = field.isCustom ? document.getElementById('fe_section').value : field.section;
+  var newOptions = [];
+  if (newType === 'select') {
+    newOptions = document.getElementById('fe_options').value.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s; });
+    if (newOptions.length === 0) { alert('请至少输入一个下拉选项'); return; }
+  }
+  
+  showLoading(true);
+  try {
+    await saveFieldConfig(function(settings) {
+      var f = settings.fieldConfig.find(function(x) { return x.key === editingFieldKey; });
+      if (f) {
+        f.label = label;
+        f.editableBy = document.getElementById('fe_editableBy').value || 'collab';
+        if (field.isCustom) {
+          f.type = newType;
+          f.section = newSection;
+          f.options = newOptions;
+          // 同步 customFields 中的信息
+          var cf = (settings.customFields || []).find(function(c) { return c.id === f.cfId; });
+          if (cf) { cf.label = label; cf.type = newType; cf.section = newSection; cf.options = newOptions; }
+        }
+      }
+    });
+    closeFieldEdit();
+    renderFieldManagement();
+    renderTable();
+  } catch(e) {
+    alert('保存失败: ' + e.message);
+  } finally {
+    showLoading(false);
+  }
+}
+
+function closeFieldEdit() {
+  editingFieldKey = null;
+  document.getElementById('fieldEditOverlay').classList.remove('active');
 }
 
 // Init
