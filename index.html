@@ -696,11 +696,10 @@ async function rmw(modifyFn, maxRetries) {
 // web mode falls back to rmw (GitHub API).
 async function saveFieldConfig(modifySettingsFn) {
   if (IS_DESKTOP) {
-    // Desktop: read fresh settings via /api/data (fast local), apply change, PUT /api/settings
-    var fresh = await fetchTimed('/api/data', { headers: { 'Content-Type': 'application/json' } }, 10000);
+    // Desktop: read ONLY settings (fast, no full-data round trip), apply change, PUT /api/settings
+    var fresh = await fetchTimed('/api/settings', { headers: authHeaders() }, 10000);
     if (!fresh.ok) throw new Error('读取配置失败(HTTP ' + fresh.status + ')');
-    var full = await fresh.json();
-    var settings = full.settings || { customFields: [], nextCfId: 1 };
+    var settings = await fresh.json();
     if (!settings.fieldConfig) {
       settings.fieldConfig = DEFAULT_FIELD_CONFIG.map(function(f) { return Object.assign({}, f); });
       settings.fieldConfigUpdatedAt = now();
@@ -2191,10 +2190,13 @@ async function saveFieldEdit() {
       if (f) {
         f.label = label;
         f.editableBy = document.getElementById('fe_editableBy').value || 'collab';
+        // 选项对所有 select 字段都可编辑（内置 + 自定义）
+        if (newType === 'select') {
+          f.options = newOptions;
+        }
         if (field.isCustom) {
           f.type = newType;
           f.section = newSection;
-          f.options = newOptions;
           // 同步 customFields 中的信息
           var cf = (settings.customFields || []).find(function(c) { return c.id === f.cfId; });
           if (cf) { cf.label = label; cf.type = newType; cf.section = newSection; cf.options = newOptions; }
