@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>民企清欠进度管理系统</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
 :root {
   --bg: #0f172a;
@@ -244,6 +245,35 @@ td.check-col input { cursor: pointer; width: 14px; height: 14px; accent-color: v
   background: #33415533; color: var(--text-secondary); cursor: not-allowed;
 }
 
+/* 附件上传组件 */
+.att-wrap { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.att-item {
+  display: flex; align-items: center; gap: 8px;
+  background: #33415533; border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 10px; font-size: 13px;
+}
+.att-icon { font-size: 14px; }
+.att-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.att-size { color: var(--text-secondary); font-size: 12px; white-space: nowrap; }
+.att-dl {
+  color: var(--primary); text-decoration: none; font-weight: bold;
+  padding: 2px 6px; border-radius: 6px; cursor: pointer; font-size: 14px;
+}
+.att-dl:hover { background: #3b82f633; }
+.att-del {
+  background: none; border: none; color: var(--danger); cursor: pointer;
+  font-size: 14px; padding: 2px 6px; border-radius: 6px; line-height: 1;
+}
+.att-del:hover { background: #ef444433; }
+.att-upload { display: flex; align-items: center; gap: 10px; }
+.att-upload-btn {
+  display: inline-block; padding: 6px 14px; border: 1px dashed var(--primary);
+  color: var(--primary); border-radius: 8px; cursor: pointer; font-size: 13px;
+  background: #3b82f61a; transition: all .15s;
+}
+.att-upload-btn:hover { background: #3b82f633; }
+.att-hint { color: var(--text-secondary); font-size: 12px; }
+
 /* Tabs */
 .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
 .tab {
@@ -327,7 +357,7 @@ td.check-col input { cursor: pointer; width: 14px; height: 14px; accent-color: v
           <option value="in-progress">办理中</option>
           <option value="completed">已办结</option>
         </select>
-        <button class="btn btn-export btn-sm" onclick="exportExcel()" id="btnExport" style="display:none">导出Excel</button>
+        <button class="btn btn-export btn-sm" onclick="exportExcel()" id="btnExport" style="display:none">📦 下载台账及附件</button>
         <button class="btn btn-outline btn-sm" onclick="openSettings()" id="btnSettings" style="display:none">系统设置</button>
         <button class="btn btn-primary btn-sm" onclick="openModal()" id="btnNewRecord" style="display:none">+ 新增记录</button>
       </div>
@@ -445,6 +475,8 @@ td.check-col input { cursor: pointer; width: 14px; height: 14px; accent-color: v
                 <option value="text">文本</option>
                 <option value="textarea">多行文本</option>
                 <option value="select">下拉选择</option>
+                <option value="date">日期</option>
+                <option value="file">附件上传</option>
               </select>
             </div>
             <div class="form-group"><label>填写权限</label>
@@ -512,6 +544,7 @@ td.check-col input { cursor: pointer; width: 14px; height: 14px; accent-color: v
             <option value="textarea">多行文本</option>
             <option value="select">下拉选择</option>
             <option value="date">日期</option>
+            <option value="file">附件上传</option>
           </select>
         </div>
       </div>
@@ -884,6 +917,11 @@ async function loadRecords(silent) {
       fieldConfig = data.settings.fieldConfig;
     } else {
       fieldConfig = [];
+    }
+    // 补齐新增内置字段（如附件上传字段）
+    if (data.settings) {
+      ensureFieldConfig(data);
+      fieldConfig = data.settings.fieldConfig;
     }
     if (data._syncStatus) {
       lastSyncInfo = data._syncStatus;
@@ -1318,6 +1356,7 @@ var DEFAULT_FIELD_CONFIG = [
   { key: 'contract_amount', label: '合同金额', type: 'text', section: 'basic', editableBy: 'admin', visible: true, isCustom: false },
   { key: 'delay_deadline', label: '延期到期日', type: 'date', section: 'basic', editableBy: 'admin', visible: true, isCustom: false },
   { key: 'final_close_date', label: '最终办结日期', type: 'date', section: 'basic', editableBy: 'admin', visible: true, isCustom: false },
+  { key: 'clue_check_attachments', label: '线索核查附件上传', type: 'file', section: 'basic', editableBy: 'admin', visible: true, isCustom: false },
   { key: 'branch', label: '分公司', type: 'text', section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
   { key: 'project_manager', label: '项目负责人', type: 'text', section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
   { key: 'verification', label: '核实情况', type: 'textarea', section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
@@ -1341,6 +1380,7 @@ var DEFAULT_FIELD_CONFIG = [
   { key: 'complaint_type_yearend', label: '截至1231投诉事项类型', type: 'select', options: ['1.已支付完毕（无剩余款项）','2.未支付完毕（剩余款项为背靠背）','3.未支付完毕（剩余款项为质保金）','4.未支付完毕（剩余款项签署补充协议）','5.未支付完毕（剩余款项未达付款条件且不存在争议）','6.存在争议且未进入法律程序','7.已进入司法诉讼、纪检调查等程序','8.无需支付、不涉及支付'], section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
   { key: 'latest_progress_yearend', label: '截至1231最新进展 (300字内)', type: 'textarea', section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
   { key: 'accountability', label: '追责情况', type: 'select', options: ['清欠工作原因追责','项目管理及清欠原因追责'], section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
+  { key: 'accountability_attachments', label: '追责附件上传', type: 'file', section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
   { key: 'accountability_detail', label: '追责情况说明', type: 'textarea', section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
   { key: 'accountability_method', label: '问责方式', type: 'text', section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
   { key: 'accountable_person', label: '问责项目经理/项目负责人', type: 'text', section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
@@ -1394,6 +1434,20 @@ function ensureFieldConfig(store) {
     }
     return true; // was initialized
   }
+  // Merge newly-added built-in fields (e.g. attachment fields) into existing config
+  var changed = false;
+  for (var di = 0; di < DEFAULT_FIELD_CONFIG.length; di++) {
+    var def = DEFAULT_FIELD_CONFIG[di];
+    if (def.isCustom) continue;
+    if (!store.settings.fieldConfig.find(function(f) { return f.key === def.key; })) {
+      store.settings.fieldConfig.push(Object.assign({}, def));
+      changed = true;
+    }
+  }
+  if (changed) {
+    store.settings.fieldConfigUpdatedAt = now();
+    if (window._storeRef) window._storeRef.settings = store.settings;
+  }
   return false;
 }
 
@@ -1423,8 +1477,205 @@ function renderFieldInput(field, value, readonly) {
     return '<select autocomplete="off" id="' + id + '" ' + dis + '><option value="">-- 请选择 --</option>' + opts + '</select>';
   } else if (field.type === 'date') {
     return '<input type="date" id="' + id + '" value="' + (value || '') + '" ' + ro + '>';
+  } else if (field.type === 'file') {
+    // 多文件附件：展示已上传列表 + 上传按钮
+    var atts = [];
+    try { atts = JSON.parse(value || '[]') || []; } catch(e) { atts = []; }
+    var listHtml = atts.map(function(a) {
+      var safeName = (a.name || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+      var safePath = (a.path || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      var delBtn = readonly ? '' : '<button type="button" class="att-del" title="删除" onclick="deleteAttachment(\'' + field.key + '\',\'' + safePath + '\',this)">✕</button>';
+      var dlBtn = '<a class="att-dl" title="下载" href="javascript:void(0)" onclick="downloadSingleAttachment(\'' + safePath + '\')">↓</a>';
+      return '<div class="att-item"><span class="att-icon">📎</span><span class="att-name" title="' + safeName + '">' + safeName + '</span><span class="att-size">' + fmtSize(a.size) + '</span>' + dlBtn + delBtn + '</div>';
+    }).join('');
+    var uploadHtml = readonly ? '' :
+      '<div class="att-upload"><label class="att-upload-btn">📤 上传附件<input type="file" multiple style="display:none" onchange="uploadAttachments(\'' + field.key + '\', this.files, this)"></label><span class="att-hint">可多选，单个文件 ≤ 10MB</span></div>';
+    return '<div class="att-wrap" id="att_' + field.key + '">' + listHtml + uploadHtml + '</div>';
   } else {
     return '<input autocomplete="off" id="' + id + '" value="' + safeVal + '" ' + ro + '>';
+  }
+}
+
+// ============ 附件上传/下载/删除 ============
+function fmtSize(bytes) {
+  bytes = parseInt(bytes) || 0;
+  if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
+  if (bytes >= 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return bytes + ' B';
+}
+function parseAtts(str) {
+  if (!str) return [];
+  try { var a = JSON.parse(str); return Array.isArray(a) ? a : []; } catch(e) { return []; }
+}
+function fileToBase64(file) {
+  return new Promise(function(resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function() { resolve(reader.result.split(',')[1] || ''); };
+    reader.onerror = function() { reject(new Error('读取文件失败')); };
+    reader.readAsDataURL(file);
+  });
+}
+function getRecordFolder(rec) {
+  return (rec.registration_no && rec.registration_no.trim()) ? rec.registration_no.trim() : ('记录' + rec.id);
+}
+function refreshAttList(fieldKey) {
+  var rec = records.find(function(r) { return r.id === editingRecordId; });
+  if (!rec) return;
+  var config = getActiveFieldConfig();
+  var field = config.find(function(f) { return f.key === fieldKey; });
+  var canEdit = currentUser.role === 'admin' || field.editableBy === 'collab';
+  var wrap = document.getElementById('att_' + fieldKey);
+  if (wrap) {
+    var value = rec[fieldKey] || '';
+    var atts = parseAtts(value);
+    var readonly = !canEdit;
+    var listHtml = atts.map(function(a) {
+      var safeName = (a.name || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+      var safePath = (a.path || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      var delBtn = readonly ? '' : '<button type="button" class="att-del" title="删除" onclick="deleteAttachment(\'' + fieldKey + '\',\'' + safePath + '\',this)">✕</button>';
+      var dlBtn = '<a class="att-dl" title="下载" href="javascript:void(0)" onclick="downloadSingleAttachment(\'' + safePath + '\')">↓</a>';
+      return '<div class="att-item"><span class="att-icon">📎</span><span class="att-name" title="' + safeName + '">' + safeName + '</span><span class="att-size">' + fmtSize(a.size) + '</span>' + dlBtn + delBtn + '</div>';
+    }).join('');
+    var uploadHtml = readonly ? '' :
+      '<div class="att-upload"><label class="att-upload-btn">📤 上传附件<input type="file" multiple style="display:none" onchange="uploadAttachments(\'' + fieldKey + '\', this.files, this)"></label><span class="att-hint">可多选，单个文件 ≤ 10MB</span></div>';
+    wrap.innerHTML = listHtml + uploadHtml;
+  }
+}
+async function uploadAttachments(fieldKey, files, inputEl) {
+  var rec = records.find(function(r) { return r.id === editingRecordId; });
+  if (!rec || !rec.id) { alert('请先保存记录，再上传附件'); if (inputEl) inputEl.value = ''; return; }
+  if (!files || files.length === 0) return;
+  showLoading(true);
+  try {
+    var atts = parseAtts(rec[fieldKey]);
+    for (var i = 0; i < files.length; i++) {
+      var f = files[i];
+      if (f.size > 10 * 1024 * 1024) { alert('文件 "' + f.name + '" 超过 10MB，已跳过'); continue; }
+      var b64 = await fileToBase64(f);
+      var meta = await uploadFile(rec, fieldKey, f.name, b64);
+      if (meta) atts.push(meta);
+    }
+    rec[fieldKey] = JSON.stringify(atts);
+    refreshAttList(fieldKey);
+  } catch(e) {
+    alert('上传失败: ' + e.message);
+  } finally {
+    showLoading(false);
+    if (inputEl) inputEl.value = '';
+  }
+}
+async function uploadFile(rec, fieldKey, filename, base64) {
+  var folder = getRecordFolder(rec);
+  var ghPath = 'attachments/' + folder + '/' + filename;
+  if (IS_DESKTOP) {
+    var res = await fetchTimed('/api/attachments', {
+      method: 'POST', headers: authHeaders(),
+      body: JSON.stringify({ record_id: rec.id, field_key: fieldKey, path: ghPath, filename: filename, base64: base64 })
+    }, 30000);
+    if (!res.ok) {
+      var err = {}; try { err = await res.json(); } catch(e) {}
+      throw new Error(err.error || ('上传失败(HTTP ' + res.status + ')'));
+    }
+    var meta = await res.json();
+    return meta;
+  } else {
+    // Web mode: GitHub Contents API
+    var res = await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + encodeURIComponent(ghPath), {
+      method: 'PUT', headers: ghHeaders(),
+      body: JSON.stringify({ message: 'upload ' + filename, content: base64, branch: GH.branch })
+    }, 30000);
+    if (!res.ok) {
+      var err = {}; try { err = await res.json(); } catch(e) {}
+      throw new Error(err.message || ('上传失败(HTTP ' + res.status + ')'));
+    }
+    // 更新记录字段（GitHub 上）
+    var meta = { name: filename, path: ghPath, size: Math.round((base64.length * 3) / 4), uploaded_at: now() };
+    await rmw(function(store) {
+      var r = store.records.find(function(x) { return x.id === rec.id; });
+      if (!r) return;
+      var arr = parseAtts(r[fieldKey]);
+      arr.push(meta);
+      r[fieldKey] = JSON.stringify(arr);
+      r.updated_at = now();
+    });
+    return meta;
+  }
+}
+async function deleteAttachment(fieldKey, path, btn) {
+  if (!confirm('确定删除该附件？')) return;
+  showLoading(true);
+  try {
+    if (IS_DESKTOP) {
+      var res = await fetchTimed('/api/attachments', {
+        method: 'DELETE', headers: authHeaders(),
+        body: JSON.stringify({ record_id: editingRecordId, field_key: fieldKey, path: path })
+      }, 15000);
+      if (!res.ok) {
+        var err = {}; try { err = await res.json(); } catch(e) {}
+        throw new Error(err.error || ('删除失败(HTTP ' + res.status + ')'));
+      }
+    } else {
+      // Web: delete file from GitHub + update record
+      var ghPath = path;
+      var sha = await getGitHubFileSha(ghPath);
+      if (sha) {
+        await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + encodeURIComponent(ghPath), {
+          method: 'DELETE', headers: ghHeaders(),
+          body: JSON.stringify({ message: 'delete ' + ghPath, sha: sha, branch: GH.branch })
+        }, 15000);
+      }
+      await rmw(function(store) {
+        var r = store.records.find(function(x) { return x.id === editingRecordId; });
+        if (!r) return;
+        var arr = parseAtts(r[fieldKey]).filter(function(a) { return a.path !== path; });
+        r[fieldKey] = JSON.stringify(arr);
+        r.updated_at = now();
+      });
+    }
+    var rec = records.find(function(r) { return r.id === editingRecordId; });
+    if (rec) {
+      rec[fieldKey] = JSON.stringify(parseAtts(rec[fieldKey]).filter(function(a) { return a.path !== path; }));
+      refreshAttList(fieldKey);
+    }
+  } catch(e) {
+    alert('删除失败: ' + e.message);
+  } finally {
+    showLoading(false);
+  }
+}
+async function getGitHubFileSha(ghPath) {
+  try {
+    var res = await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + encodeURIComponent(ghPath) + '?ref=' + GH.branch, { headers: ghHeaders() }, 15000);
+    if (!res.ok) return null;
+    var j = await res.json();
+    return j.sha || null;
+  } catch(e) { return null; }
+}
+async function fetchAttachmentBlob(path) {
+  if (IS_DESKTOP) {
+    var res = await fetchTimed('/api/attachments/download?path=' + encodeURIComponent(path), { headers: authHeaders() }, 20000);
+    if (!res.ok) throw new Error('附件下载失败(HTTP ' + res.status + ')');
+    return await res.blob();
+  } else {
+    var res = await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + encodeURIComponent(path) + '?ref=' + GH.branch, { headers: ghHeaders() }, 20000);
+    if (!res.ok) throw new Error('附件下载失败(HTTP ' + res.status + ')');
+    var j = await res.json();
+    var bin = atob((j.content || '').replace(/\n/g, ''));
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Blob([bytes]);
+  }
+}
+async function downloadSingleAttachment(path) {
+  try {
+    var blob = await fetchAttachmentBlob(path);
+    var name = decodeURIComponent(path.split('/').pop() || '附件');
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = name; a.click();
+    setTimeout(function() { URL.revokeObjectURL(url); }, 3000);
+  } catch(e) {
+    alert('下载失败: ' + e.message);
   }
 }
 
@@ -1437,19 +1688,13 @@ function renderSectionFields(fields, record, canEdit, isAdmin) {
     var val = record[field.key] || '';
     var labelClass = field.editableBy === 'collab' ? ' class="blue-field"' : '';
     
-    if (field.type === 'textarea') {
-      html += '<div class="form-row form-row-1">';
-      html += '<div class="form-group"><label' + labelClass + '>' + field.label + '</label>';
-      html += renderFieldInput(field, val, !fieldEditable);
-      html += '</div></div>';
-      i++;
-    } else {
+    if (field.type === 'textarea' || field.type === 'file') {
       html += '<div class="form-row">';
       html += '<div class="form-group"><label' + labelClass + '>' + field.label + '</label>';
       html += renderFieldInput(field, val, !fieldEditable);
       html += '</div>';
       i++;
-      if (i < fields.length && fields[i].type !== 'textarea') {
+      if (i < fields.length && fields[i].type !== 'textarea' && fields[i].type !== 'file') {
         var f2 = fields[i];
         var fe2 = canEdit && (isAdmin || f2.editableBy === 'collab');
         var v2 = record[f2.key] || '';
@@ -1768,14 +2013,23 @@ function exportExcel() {
         var u = users.find(function(u) { return u.id === records[r].assignee_id; });
         return u ? u.display_name : (records[r].assignee_name || '');
       }
-      return records[r][f] || '';
+      var val = records[r][f] || '';
+      // 附件字段导出时显示文件名列表（便于阅读）
+      var cf = config.find(function(c) { return c.key === f; });
+      if (cf && cf.type === 'file') {
+        var arr = parseAtts(val);
+        return arr.map(function(a) { return a.name; }).join('、');
+      }
+      return val;
     });
     rows.push(row);
   }
   
   var filename = '民企清欠投诉清单_' + new Date().toISOString().split('T')[0];
   
-  if (typeof XLSX !== 'undefined') {
+  // 生成 Excel（返回 array 供 JSZip 使用；无附件时直接下载）
+  function buildXlsx() {
+    if (typeof XLSX === 'undefined') return null;
     var wb = XLSX.utils.book_new();
     var ws = XLSX.utils.aoa_to_sheet(rows);
     ws['!cols'] = headers.map(function(h, i) {
@@ -1783,20 +2037,81 @@ function exportExcel() {
       return { wch: Math.min(w, 40) };
     });
     XLSX.utils.book_append_sheet(wb, ws, '投诉清单');
-    XLSX.writeFile(wb, filename + '.xlsx');
-  } else {
-    // CSV fallback
-    var csv = rows.map(function(r) {
-      return r.map(function(c) { return '"' + (c || '').toString().replace(/"/g, '""') + '"'; }).join(',');
-    }).join('\n');
-    var blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = filename + '.csv';
-    a.click();
-    URL.revokeObjectURL(url);
+    return XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   }
+  
+  // 统计所有附件
+  var allAtts = [];
+  records.forEach(function(rec) {
+    config.forEach(function(cf) {
+      if (cf.type !== 'file') return;
+      parseAtts(rec[cf.key]).forEach(function(a) {
+        allAtts.push({ rec: rec, att: a });
+      });
+    });
+  });
+  
+  // 无附件：直接下载 Excel（见下方 async 块）
+  showLoading(true);
+  (async function() {
+    try {
+      var xlsxArray = buildXlsx();
+      if (!xlsxArray) {
+        // CSV fallback
+        var csv = rows.map(function(rr) {
+          return rr.map(function(c) { return '"' + (c || '').toString().replace(/"/g, '""') + '"'; }).join(',');
+        }).join('\n');
+        var blob0 = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+        var url0 = URL.createObjectURL(blob0);
+        var a0 = document.createElement('a');
+        a0.href = url0; a0.download = filename + '.csv'; a0.click();
+        setTimeout(function() { URL.revokeObjectURL(url0); }, 3000);
+        return;
+      }
+      
+      if (allAtts.length === 0) {
+        // 没有附件：直接下载单个 Excel
+        var blobX = new Blob([xlsxArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        var urlX = URL.createObjectURL(blobX);
+        var aX = document.createElement('a');
+        aX.href = urlX; aX.download = filename + '.xlsx'; aX.click();
+        setTimeout(function() { URL.revokeObjectURL(urlX); }, 3000);
+        return;
+      }
+      
+      // 有附件：打包 ZIP（Excel + 按线索编号命名的附件文件夹）
+      if (typeof JSZip === 'undefined') { alert('打包组件未加载，请检查网络后重试'); return; }
+      var zip = new JSZip();
+      zip.file(filename + '.xlsx', xlsxArray);
+      var downloaded = 0;
+      var failed = [];
+      for (var ai = 0; ai < allAtts.length; ai++) {
+        var item = allAtts[ai];
+        try {
+          var blob = await fetchAttachmentBlob(item.att.path);
+          var folderName = getRecordFolder(item.rec);
+          zip.folder(folderName).file(item.att.name, blob);
+          downloaded++;
+        } catch(e) {
+          failed.push(item.att.name);
+        }
+      }
+      var zipBlob = await zip.generateAsync({ type: 'blob' });
+      var url = URL.createObjectURL(zipBlob);
+      var a = document.createElement('a');
+      a.href = url; a.download = filename + '_含附件.zip'; a.click();
+      setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
+      if (failed.length > 0) {
+        alert('打包完成（' + downloaded + ' 个附件）。\n以下附件下载失败，请单独重试：\n' + failed.join('\n'));
+      } else {
+        alert('打包完成！共 ' + downloaded + ' 个附件已按线索编号分文件夹打包。');
+      }
+    } catch(e) {
+      alert('导出失败: ' + e.message);
+    } finally {
+      showLoading(false);
+    }
+  })();
 }
 
 // Click outside modal to close
