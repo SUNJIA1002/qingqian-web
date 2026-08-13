@@ -2552,7 +2552,7 @@ async function saveFieldEdit() {
   
   var config = getActiveFieldConfig();
   var field = config.find(function(f) { return f.key === editingFieldKey; });
-  if (!field) return;
+  if (!field) { alert('字段不存在，请刷新页面重试'); return; }
   
   var newType = field.isCustom ? document.getElementById('fe_type').value : field.type;
   var newSection = field.isCustom ? document.getElementById('fe_section').value : field.section;
@@ -2561,30 +2561,67 @@ async function saveFieldEdit() {
     newOptions = document.getElementById('fe_options').value.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s; });
     if (newOptions.length === 0) { alert('请至少输入一个下拉选项'); return; }
   }
+  var newEditableBy = document.getElementById('fe_editableBy').value || 'collab';
   
   showLoading(true);
   try {
-    await saveFieldConfig(function(settings) {
-      var f = settings.fieldConfig.find(function(x) { return x.key === editingFieldKey; });
-      if (f) {
-        f.label = label;
-        f.editableBy = document.getElementById('fe_editableBy').value || 'collab';
-        // 选项对所有 select 字段都可编辑（内置 + 自定义）
-        if (newType === 'select') {
-          f.options = newOptions;
-        }
-        if (field.isCustom) {
-          f.type = newType;
-          f.section = newSection;
-          // 同步 customFields 中的信息
-          var cf = (settings.customFields || []).find(function(c) { return c.id === f.cfId; });
-          if (cf) { cf.label = label; cf.type = newType; cf.section = newSection; cf.options = newOptions; }
-        }
+    if (IS_DESKTOP) {
+      // Desktop: atomic single-field update — no GET-then-PUT race
+      var res = await fetchTimed('/api/settings/field', {
+        method: 'PUT',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          key: editingFieldKey,
+          label: label,
+          editableBy: newEditableBy,
+          type: field.isCustom ? newType : undefined,
+          section: field.isCustom ? newSection : undefined,
+          options: newType === 'select' ? newOptions : undefined
+        })
+      }, 10000);
+      if (!res.ok) {
+        var err = {}; try { err = await res.json(); } catch(ee) {}
+        throw new Error(err.error || '保存失败(HTTP ' + res.status + ')');
       }
-    });
+      var result = await res.json();
+      // Update local fieldConfig from server response
+      var updatedField = result.field;
+      if (updatedField) {
+        var idx = fieldConfig.findIndex(function(f) { return f.key === editingFieldKey; });
+        if (idx >= 0) fieldConfig[idx] = updatedField;
+      }
+    } else {
+      // Web mode: rmw with more retries
+      await rmw(function(store) {
+        ensureFieldConfig(store);
+        if (!store.settings.fieldConfigUpdatedAt) store.settings.fieldConfigUpdatedAt = now();
+        var f = store.settings.fieldConfig.find(function(x) { return x.key === editingFieldKey; });
+        if (f) {
+          f.label = label;
+          f.editableBy = newEditableBy;
+          if (newType === 'select') f.options = newOptions;
+          if (field.isCustom) {
+            f.type = newType;
+            f.section = newSection;
+            var cf = (store.settings.customFields || []).find(function(c) { return c.id === f.cfId; });
+            if (cf) { cf.label = label; cf.type = newType; cf.section = newSection; cf.options = newOptions; }
+          }
+        }
+        store.settings.fieldConfigUpdatedAt = now();
+      }, 5);
+      // Update local fieldConfig from the modification we just made
+      var lf = fieldConfig.find(function(f) { return f.key === editingFieldKey; });
+      if (lf) {
+        lf.label = label;
+        lf.editableBy = newEditableBy;
+        if (newType === 'select') lf.options = newOptions;
+      }
+    }
     closeFieldEdit();
     renderFieldManagement();
     renderTable();
+    // Refresh data in background — don't block the save success
+    loadRecords(true).catch(function() {});
   } catch(e) {
     alert('保存失败: ' + e.message);
   } finally {
