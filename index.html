@@ -425,19 +425,25 @@ td.check-col input { cursor: pointer; width: 14px; height: 14px; accent-color: v
       <!-- Users Tab -->
       <div id="settingsTabUsers" style="display:none">
         <div class="form-section">
-          <h4>协作者列表</h4>
+          <h4>用户管理</h4>
           <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">
-            协作者登录后只能看到和编辑分配给自己的记录。
+            副管理员可查看/修改/下载所有记录和附件，但不能管理用户和系统设置。协作者只能看到和编辑分配给自己的记录。
           </p>
           <div id="collaboratorList" style="margin-bottom:16px"></div>
           
-          <h4 style="font-size:13px;margin-bottom:8px">添加协作者</h4>
+          <h4 style="font-size:13px;margin-bottom:8px">添加用户</h4>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
             <div class="form-group"><label>用户名</label><input id="new_user_username" placeholder="如：zhangsan"></div>
             <div class="form-group"><label>显示名称</label><input id="new_user_display" placeholder="如：张三"></div>
             <div class="form-group"><label>初始密码</label><input id="new_user_password" type="text" placeholder="留空则自动用用户名" style="flex:0.8"></div>
+            <div class="form-group"><label>角色</label>
+              <select id="new_user_role" style="padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text)">
+                <option value="user">协作者</option>
+                <option value="sub_admin">副管理员</option>
+              </select>
+            </div>
           </div>
-          <button class="btn btn-primary btn-sm" onclick="addCollaborator()" style="margin-top:8px">+ 添加协作者</button>
+          <button class="btn btn-primary btn-sm" onclick="addCollaborator()" style="margin-top:8px">+ 添加用户</button>
         </div>
       </div>
       
@@ -786,6 +792,9 @@ let customFields = [];
 let fieldConfig = [];
 let editingRecordId = null;
 let typeFilter = 'all';
+// Permission shortcuts (set in checkAuth)
+let isSuperAdmin = false;   // only admin: manage users, assign records, field config, delete records
+let isAdminLike = false;    // admin + sub_admin: view/edit/download all records & attachments
 
 // ============================================================
 // Auth
@@ -795,8 +804,11 @@ function checkAuth() {
   if (!userStr) { showLogin(); return; }
   try {
     currentUser = JSON.parse(userStr);
+    isSuperAdmin = currentUser.role === 'admin';
+    isAdminLike = currentUser.role === 'admin' || currentUser.role === 'sub_admin';
+    var roleLabel = currentUser.role === 'admin' ? '管理员' : (currentUser.role === 'sub_admin' ? '副管理员' : '填写人');
     document.getElementById('userDisplay').innerHTML =
-      '<strong>' + currentUser.display_name + '</strong> (' + (currentUser.role === 'admin' ? '管理员' : '填写人') + ')';
+      '<strong>' + currentUser.display_name + '</strong> (' + roleLabel + ')';
     init();
   } catch(e) { showLogin(); }
 }
@@ -869,11 +881,13 @@ function logout() {
 // Init & Data Loading
 // ============================================================
 function init() {
-  if (currentUser.role === 'admin') {
+  if (isAdminLike) {
     document.getElementById('btnNewRecord').style.display = 'inline-block';
     document.getElementById('btnExport').style.display = 'inline-block';
-    document.getElementById('btnSettings').style.display = 'inline-block';
     document.getElementById('typeFilter').style.display = 'flex';
+  }
+  if (isSuperAdmin) {
+    document.getElementById('btnSettings').style.display = 'inline-block';
   }
   // Show sync badge on desktop mode
   if (IS_DESKTOP) {
@@ -929,7 +943,7 @@ async function loadRecords(silent) {
     }
     
     let recs = data.records;
-    if (currentUser.role !== 'admin') {
+    if (!isAdminLike) {
       recs = recs.filter(function(r) { return r.assignee_id === currentUser.id; });
     }
     recs.sort(function(a, b) {
@@ -1523,7 +1537,7 @@ function refreshAttList(fieldKey) {
   if (!rec) return;
   var config = getActiveFieldConfig();
   var field = config.find(function(f) { return f.key === fieldKey; });
-  var canEdit = currentUser.role === 'admin' || field.editableBy === 'collab';
+  var canEdit = isAdminLike || field.editableBy === 'collab';
   var wrap = document.getElementById('att_' + fieldKey);
   if (wrap) {
     var value = rec[fieldKey] || '';
@@ -1728,21 +1742,20 @@ function renderSectionFields(fields, record, canEdit, isAdmin) {
 }
 
 function renderModal(record) {
-  var isAdmin = currentUser.role === 'admin';
   var isNew = !record.id;
-  var isAssigned = !isAdmin && record.assignee_id === currentUser.id;
-  var canEdit = isAdmin || isAssigned;
+  var isAssigned = !isAdminLike && record.assignee_id === currentUser.id;
+  var canEdit = isAdminLike || isAssigned;
   
   document.getElementById('modalTitle').textContent = isNew ? '新增投诉记录' : ('记录 #' + record.id);
   document.getElementById('btnSave').style.display = canEdit ? '' : 'none';
-  document.getElementById('deleteArea').style.display = (isAdmin && !isNew) ? '' : 'none';
+  document.getElementById('deleteArea').style.display = (isSuperAdmin && !isNew) ? '' : 'none';
   
   var config = getActiveFieldConfig();
   var html = '';
   
-  // Assignee section
-  if (isAdmin) {
-    var collabOptions = users.filter(function(u) { return u.role !== 'admin'; })
+  // Assignee section — only super admin can assign
+  if (isSuperAdmin) {
+    var collabOptions = users.filter(function(u) { return u.role !== 'admin' && u.role !== 'sub_admin'; })
       .map(function(u) { return '<option value="' + u.id + '" ' + (u.id === record.assignee_id ? 'selected' : '') + '>' + u.display_name + ' (@' + u.username + ')</option>'; })
       .join('');
     html += '<div class="form-section"><h4>分配信息</h4><div class="form-row"><div class="form-group"><label>指定填写人</label><select autocomplete="off" id="edit_assignee_id"><option value="">-- 未分配 --</option>' + collabOptions + '</select></div></div></div>';
@@ -1765,7 +1778,7 @@ function renderModal(record) {
     if (sectionFields.length === 0) continue;
     
     html += '<div class="form-section"><h4 style="color:' + section.color + '">' + section.title + '</h4>';
-    html += renderSectionFields(sectionFields, record, canEdit, isAdmin);
+    html += renderSectionFields(sectionFields, record, canEdit, isAdminLike);
     html += '</div>';
   }
   
@@ -1777,7 +1790,6 @@ function renderModal(record) {
 // Save Record — 桌面端走REST API（秒存），网页端走rmw+乐观更新
 // ============================================================
 async function saveRecord() {
-  var isAdmin = currentUser.role === 'admin';
   var config = getActiveFieldConfig();
   
   // 收集表单数据（根据 fieldConfig 动态收集）
@@ -1787,8 +1799,8 @@ async function saveRecord() {
     if (field.visible === false) continue;
     var el = document.getElementById('edit_' + field.key);
     if (el) {
-      // 协作人只能编辑 editableBy='collab' 的字段
-      var canEditField = isAdmin || field.editableBy === 'collab';
+      // 协作人只能编辑 editableBy='collab' 的字段；admin/sub_admin 可编辑全部
+      var canEditField = isAdminLike || field.editableBy === 'collab';
       if (canEditField) {
         formData[field.key] = el.value || '';
       }
@@ -1825,7 +1837,7 @@ async function saveRecord() {
           Object.keys(formData).forEach(function(k) {
             if (k !== 'assignee_id') rec[k] = formData[k];
           });
-          if (formData.assignee_id !== undefined && isAdmin) {
+          if (formData.assignee_id !== undefined && isSuperAdmin) {
             var a = users.find(function(u) { return u.id === formData.assignee_id; });
             rec.assignee_id = formData.assignee_id || null;
             rec.assignee_name = a ? a.display_name : '';
@@ -1881,17 +1893,17 @@ async function saveRecord() {
         var record = store.records.find(function(r) { return r.id === editingId; });
         if (!record) throw new Error('记录不存在');
         
-        if (!isAdmin && record.assignee_id !== currentUser.id) {
+        if (!isAdminLike && record.assignee_id !== currentUser.id) {
           throw new Error('无权编辑此记录，请联系管理员分配');
         }
         
         // 根据权限确定可编辑字段
-        var editableKeys = isAdmin
+        var editableKeys = isAdminLike
           ? cfg.filter(function(f) { return f.visible !== false; }).map(function(f) { return f.key; })
           : cfg.filter(function(f) { return f.visible !== false && f.editableBy === 'collab'; }).map(function(f) { return f.key; });
         
-        // 管理员还可以编辑记录中已有的其他key（向前兼容）
-        if (isAdmin) {
+        // 管理员/副管理员还可以编辑记录中已有的其他key（向前兼容）
+        if (isAdminLike) {
           Object.keys(record).forEach(function(k) {
             if (k !== 'id' && k !== 'created_at' && k !== 'assignee_id' && k !== 'assignee_name' && editableKeys.indexOf(k) < 0) {
               editableKeys.push(k);
@@ -2274,21 +2286,52 @@ function renderCollaboratorList() {
   if (!container) return;
   var collaborators = users.filter(function(u) { return u.role !== 'admin'; });
   if (collaborators.length === 0) {
-    container.innerHTML = '<p style="color:var(--text-secondary);font-size:13px;text-align:center;padding:20px">暂无协作者，在下方添加</p>';
+    container.innerHTML = '<p style="color:var(--text-secondary);font-size:13px;text-align:center;padding:20px">暂无用户，在下方添加</p>';
     return;
   }
   container.innerHTML = collaborators.map(function(u) {
+    var isSubAdmin = u.role === 'sub_admin';
+    var roleTag = isSubAdmin
+      ? '<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(59,130,246,0.2);color:var(--primary);margin-left:6px">副管理员</span>'
+      : '<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(148,163,184,0.15);color:var(--text-secondary);margin-left:6px">协作者</span>';
+    var roleBtn = isSubAdmin
+      ? '<button class="btn btn-outline btn-sm" onclick="changeUserRole(' + u.id + ', \'user\')" style="font-size:11px;padding:2px 8px;margin-right:4px">降为协作者</button>'
+      : '<button class="btn btn-outline btn-sm" onclick="changeUserRole(' + u.id + ', \'sub_admin\')" style="font-size:11px;padding:2px 8px;margin-right:4px">升为副管理员</button>';
     return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;background:var(--bg)">' +
-      '<div><strong style="font-size:13px">' + u.display_name + '</strong><span style="color:var(--text-secondary);font-size:11px;margin-left:8px">@' + u.username + '</span></div>' +
-      '<button class="btn btn-danger btn-sm" onclick="deleteCollaborator(' + u.id + ')" style="font-size:11px;padding:2px 8px">删除</button>' +
+      '<div><strong style="font-size:13px">' + u.display_name + '</strong><span style="color:var(--text-secondary);font-size:11px;margin-left:8px">@' + u.username + '</span>' + roleTag + '</div>' +
+      '<div style="display:flex;gap:4px">' + roleBtn + '<button class="btn btn-danger btn-sm" onclick="deleteCollaborator(' + u.id + ')" style="font-size:11px;padding:2px 8px">删除</button></div>' +
     '</div>';
   }).join('');
+}
+
+async function changeUserRole(id, newRole) {
+  var user = users.find(function(u) { return u.id === id; });
+  if (!user) return;
+  var label = newRole === 'sub_admin' ? '副管理员' : '协作者';
+  if (!confirm('确定将「' + user.display_name + '」的角色改为「' + label + '」吗？')) return;
+  
+  showLoading(true);
+  try {
+    await rmw(function(store) {
+      var u = store.users.find(function(x) { return x.id === id; });
+      if (u) u.role = newRole;
+    });
+    // 同步更新内存
+    user.role = newRole;
+    renderCollaboratorList();
+    alert('已将「' + user.display_name + '」设为' + label);
+  } catch(e) {
+    alert('修改失败: ' + e.message);
+  } finally {
+    showLoading(false);
+  }
 }
 
 async function addCollaborator() {
   var username = document.getElementById('new_user_username').value.trim();
   var display_name = document.getElementById('new_user_display').value.trim();
   var password = document.getElementById('new_user_password').value.trim();
+  var role = document.getElementById('new_user_role').value;
   
   if (!username || !display_name) { alert('请填写用户名和显示名称'); return; }
   if (!/^[a-z0-9_]{2,20}$/i.test(username)) { alert('用户名只允许字母数字下划线，2-20位'); return; }
@@ -2304,7 +2347,7 @@ async function addCollaborator() {
       }
       store.users.push({
         id: store.nextUserId++, username: username, password: password,
-        display_name: display_name, phone: '', role: 'user'
+        display_name: display_name, phone: '', role: role
       });
     });
     
@@ -2313,7 +2356,8 @@ async function addCollaborator() {
     document.getElementById('new_user_password').value = '';
     await loadRecords();
     renderCollaboratorList();
-    alert('协作者已创建！\n用户名：' + username + '\n初始密码：' + password + '\n\n请将以上信息发给协作者。');
+    var roleLabel = role === 'sub_admin' ? '副管理员' : '协作者';
+    alert(roleLabel + '已创建！\n用户名：' + username + '\n初始密码：' + password + '\n\n请将以上信息发给' + roleLabel + '。');
   } catch(e) {
     alert(e.message || '创建失败');
   } finally {
@@ -2322,7 +2366,10 @@ async function addCollaborator() {
 }
 
 async function deleteCollaborator(id) {
-  if (!confirm('确定删除此协作者吗？已分配给该用户的记录将变为"未分配"状态。')) return;
+  var user = users.find(function(u) { return u.id === id; });
+  var roleLabel = user && user.role === 'sub_admin' ? '副管理员' : '协作者';
+  var name = user ? user.display_name : '此用户';
+  if (!confirm('确定删除' + roleLabel + '「' + name + '」吗？已分配给该用户的记录将变为"未分配"状态。')) return;
   
   showLoading(true);
   try {
