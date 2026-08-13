@@ -1705,6 +1705,23 @@ function renderSectionFields(fields, record, canEdit, isAdmin) {
         i++;
       }
       html += '</div>';
+    } else {
+      html += '<div class="form-row">';
+      html += '<div class="form-group"><label' + labelClass + '>' + field.label + '</label>';
+      html += renderFieldInput(field, val, !fieldEditable);
+      html += '</div>';
+      i++;
+      if (i < fields.length && fields[i].type !== 'textarea' && fields[i].type !== 'file') {
+        var f2b = fields[i];
+        var fe2b = canEdit && (isAdmin || f2b.editableBy === 'collab');
+        var v2b = record[f2b.key] || '';
+        var lc2b = f2b.editableBy === 'collab' ? ' class="blue-field"' : '';
+        html += '<div class="form-group"><label' + lc2b + '>' + f2b.label + '</label>';
+        html += renderFieldInput(f2b, v2b, !fe2b);
+        html += '</div>';
+        i++;
+      }
+      html += '</div>';
     }
   }
   return html;
