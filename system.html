@@ -1505,7 +1505,7 @@ function renderFieldInput(field, value, readonly) {
       return '<div class="att-item"><span class="att-icon">📎</span><span class="att-name" title="' + safeName + '">' + safeName + '</span><span class="att-size">' + fmtSize(a.size) + '</span>' + dlBtn + delBtn + '</div>';
     }).join('');
     var uploadHtml = readonly ? '' :
-      '<div class="att-upload"><label class="att-upload-btn">📤 上传附件<input type="file" multiple style="display:none" onchange="uploadAttachments(\'' + field.key + '\', this.files, this)"></label><span class="att-hint">可多选，单个文件 ≤ 10MB</span></div>';
+      '<div class="att-upload"><label class="att-upload-btn">📤 上传附件<input type="file" multiple style="display:none" onchange="uploadAttachments(\'' + field.key + '\', this.files, this)"></label><span class="att-hint">可多选，单个文件 ≤ 100MB</span></div>';
     return '<div class="att-wrap" id="att_' + field.key + '">' + listHtml + uploadHtml + '</div>';
   } else {
     return '<input autocomplete="off" id="' + id + '" value="' + safeVal + '" ' + ro + '>';
@@ -1553,7 +1553,7 @@ function refreshAttList(fieldKey) {
       return '<div class="att-item"><span class="att-icon">📎</span><span class="att-name" title="' + safeName + '">' + safeName + '</span><span class="att-size">' + fmtSize(a.size) + '</span>' + dlBtn + delBtn + '</div>';
     }).join('');
     var uploadHtml = readonly ? '' :
-      '<div class="att-upload"><label class="att-upload-btn">📤 上传附件<input type="file" multiple style="display:none" onchange="uploadAttachments(\'' + fieldKey + '\', this.files, this)"></label><span class="att-hint">可多选，单个文件 ≤ 10MB</span></div>';
+      '<div class="att-upload"><label class="att-upload-btn">📤 上传附件<input type="file" multiple style="display:none" onchange="uploadAttachments(\'' + fieldKey + '\', this.files, this)"></label><span class="att-hint">可多选，单个文件 ≤ 100MB</span></div>';
     wrap.innerHTML = listHtml + uploadHtml;
   }
 }
@@ -1566,7 +1566,7 @@ async function uploadAttachments(fieldKey, files, inputEl) {
     var atts = parseAtts(rec[fieldKey]);
     for (var i = 0; i < files.length; i++) {
       var f = files[i];
-      if (f.size > 10 * 1024 * 1024) { alert('文件 "' + f.name + '" 超过 10MB，已跳过'); continue; }
+      if (f.size > 100 * 1024 * 1024) { alert('文件 "' + f.name + '" 超过 100MB 上限，已跳过'); continue; }
       var b64 = await fileToBase64(f);
       var meta = await uploadFile(rec, fieldKey, f.name, b64);
       if (meta) atts.push(meta);
