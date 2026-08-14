@@ -276,6 +276,9 @@ table.stats tr:hover td { background: #33415533; }
   width: 42px; height: 42px; border: 4px solid #334155; border-top-color: #3b82f6;
   border-radius: 50%; animation: spin .8s linear infinite;
 }
+.loading-box { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.loading-text { color: #e2e8f0; font-size: 14px; max-width: 420px; text-align: center; line-height: 1.6; padding: 0 20px; }
+.loading-text b { color: #93c5fd; font-weight: 600; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ===== Login ===== */
@@ -368,7 +371,12 @@ table.stats tr:hover td { background: #33415533; }
 <div id="loginWrap" style="display:none"></div>
 
 <!-- Loading -->
-<div class="loading-overlay" id="loadingOverlay"><div class="spinner"></div></div>
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-box">
+    <div class="spinner"></div>
+    <div class="loading-text" id="loadingText">处理中，请稍候…</div>
+  </div>
+</div>
 
 <!-- Modal: Policy upload -->
 <div class="modal-overlay" id="policyModal">
@@ -509,6 +517,11 @@ function fetchTimed(url, options, ms) {
   var t = setTimeout(function() { ctrl.abort(); }, ms);
   return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).finally(function() { clearTimeout(t); });
 }
+// 按文件大小动态计算上传超时：基础 60 秒 + 每 1MB 加 10 秒，封顶 10 分钟
+function uploadTimeout(sizeBytes) {
+  var mb = (sizeBytes || 0) / (1024 * 1024);
+  return Math.min(60000 + Math.round(mb * 10000), 600000);
+}
 
 async function ghLoadData() {
   if (IS_DESKTOP) {
@@ -623,7 +636,11 @@ function esc(s) {
 function escJs(s) {
   return esc(s).replace(/'/g, "\\'");
 }
-function showLoading(on) { document.getElementById('loadingOverlay').classList.toggle('show', !!on); }
+function showLoading(on, msg) {
+  var el = document.getElementById('loadingOverlay');
+  if (msg) document.getElementById('loadingText').innerHTML = msg;
+  el.classList.toggle('show', !!on);
+}
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
 function openModal(id) { document.getElementById(id).classList.add('show'); }
 
@@ -826,7 +843,7 @@ async function uploadPolicy() {
   if (!title) { alert('请输入政策名称'); return; }
   if (!input.files || !input.files.length) { alert('请选择政策文件'); return; }
   var f = input.files[0];
-  showLoading(true);
+  showLoading(true, '正在上传政策文件 <b>' + esc(f.name) + '</b>（' + fmtSize(f.size) + '）…<br>请勿关闭页面，大文件可能需要几分钟');
   try {
     var b64 = await fileToBase64(f);
     var safeName = safeFileName(f.name);
@@ -834,7 +851,7 @@ async function uploadPolicy() {
       var res = await fetchTimed('/api/policies', {
         method: 'POST', headers: authHeaders(),
         body: JSON.stringify({ title: title, filename: safeName, base64: b64 })
-      }, 30000);
+      }, uploadTimeout(f.size));
       if (!res.ok) {
         var err = {}; try { err = await res.json(); } catch(ee) {}
         throw new Error(err.error || ('上传失败(HTTP ' + res.status + ')'));
@@ -851,7 +868,7 @@ async function uploadPolicy() {
       var putRes = await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + ghPath, {
         method: 'PUT', headers: ghHeaders(),
         body: JSON.stringify({ message: 'upload policy ' + safeName, content: b64, branch: GH.branch })
-      }, 30000);
+      }, uploadTimeout(f.size));
       if (!putRes.ok) {
         var perr = {}; try { perr = await putRes.json(); } catch(ee) {}
         throw new Error(perr.message || '文件上传失败');
@@ -884,7 +901,8 @@ async function downloadPolicy(id) {
   try {
     if (IS_DESKTOP) {
       // Desktop: server records the download & streams the file
-      var res = await fetchTimed('/api/policies/download?id=' + id, { headers: authHeaders() }, 30000);
+      showLoading(true, '正在下载 <b>' + esc(p.fileName) + '</b>…');
+      var res = await fetchTimed('/api/policies/download?id=' + id, { headers: authHeaders() }, uploadTimeout(p.size || 0));
       if (!res.ok) {
         var err = {}; try { err = await res.json(); } catch(ee) {}
         throw new Error(err.error || ('下载失败(HTTP ' + res.status + ')'));
@@ -1050,7 +1068,8 @@ async function uploadTraining() {
   var input = document.getElementById('trainingFiles');
   if (!name) { alert('请输入会议名称'); return; }
   if (!input.files || !input.files.length) { alert('请至少选择一个文件'); return; }
-  showLoading(true);
+  var totalN = input.files.length;
+  showLoading(true, '正在创建宣贯记录并上传 ' + totalN + ' 个文件…<br>请勿关闭页面，大文件可能需要几分钟');
   try {
     var trainingId = null;
     if (IS_DESKTOP) {
@@ -1068,11 +1087,12 @@ async function uploadTraining() {
       for (var i = 0; i < input.files.length; i++) {
         var f = input.files[i];
         if (f.size > 100 * 1024 * 1024) { alert('「' + f.name + '」超过 100MB 上限，已跳过'); continue; }
+        showLoading(true, '正在上传 <b>(' + (i + 1) + '/' + totalN + ') ' + esc(f.name) + '</b>（' + fmtSize(f.size) + '）…<br>请勿关闭页面，大文件可能需要几分钟');
         var b64 = await fileToBase64(f);
         var fres = await fetchTimed('/api/trainings/' + trainingId + '/files', {
           method: 'POST', headers: authHeaders(),
           body: JSON.stringify({ filename: safeFileName(f.name), base64: b64 })
-        }, 30000);
+        }, uploadTimeout(f.size));
         if (!fres.ok) {
           var ferr = {}; try { ferr = await fres.json(); } catch(ee) {}
           throw new Error(ferr.error || ('文件上传失败(HTTP ' + fres.status + ')'));
@@ -1093,13 +1113,14 @@ async function uploadTraining() {
       for (var j = 0; j < input.files.length; j++) {
         var fj = input.files[j];
         if (fj.size > 100 * 1024 * 1024) { alert('「' + fj.name + '」超过 100MB 上限，已跳过'); continue; }
+        showLoading(true, '正在上传 <b>(' + (j + 1) + '/' + totalN + ') ' + esc(fj.name) + '</b>（' + fmtSize(fj.size) + '）…<br>请勿关闭页面，大文件可能需要几分钟');
         var bj = await fileToBase64(fj);
         var safeN = safeFileName(fj.name);
         var tPath = 'attachments/trainings/t' + trainingId + '/' + encodeURIComponent(safeN);
         var putRes = await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + tPath, {
           method: 'PUT', headers: ghHeaders(),
           body: JSON.stringify({ message: 'upload training file ' + safeN, content: bj, branch: GH.branch })
-        }, 30000);
+        }, uploadTimeout(fj.size));
         if (!putRes.ok) {
           var perr = {}; try { perr = await putRes.json(); } catch(ee) {}
           throw new Error(perr.message || '文件上传失败');
@@ -1129,17 +1150,19 @@ async function uploadTraining() {
 
 async function addTrainingFiles(id, files, inputEl) {
   if (!files || !files.length) return;
-  showLoading(true);
+  var totalN = files.length;
+  showLoading(true, '正在上传 ' + totalN + ' 个文件…<br>请勿关闭页面，大文件可能需要几分钟');
   try {
     if (IS_DESKTOP) {
       for (var i = 0; i < files.length; i++) {
         var f = files[i];
         if (f.size > 100 * 1024 * 1024) { alert('「' + f.name + '」超过 100MB 上限，已跳过'); continue; }
+        showLoading(true, '正在上传 <b>(' + (i + 1) + '/' + totalN + ') ' + esc(f.name) + '</b>（' + fmtSize(f.size) + '）…<br>请勿关闭页面，大文件可能需要几分钟');
         var b64 = await fileToBase64(f);
         var res = await fetchTimed('/api/trainings/' + id + '/files', {
           method: 'POST', headers: authHeaders(),
           body: JSON.stringify({ filename: safeFileName(f.name), base64: b64 })
-        }, 30000);
+        }, uploadTimeout(f.size));
         if (!res.ok) {
           var err = {}; try { err = await res.json(); } catch(ee) {}
           throw new Error(err.error || ('上传失败(HTTP ' + res.status + ')'));
@@ -1149,13 +1172,14 @@ async function addTrainingFiles(id, files, inputEl) {
       for (var j = 0; j < files.length; j++) {
         var fj = files[j];
         if (fj.size > 100 * 1024 * 1024) { alert('「' + fj.name + '」超过 100MB 上限，已跳过'); continue; }
+        showLoading(true, '正在上传 <b>(' + (j + 1) + '/' + totalN + ') ' + esc(fj.name) + '</b>（' + fmtSize(fj.size) + '）…<br>请勿关闭页面，大文件可能需要几分钟');
         var bj = await fileToBase64(fj);
         var safeN = safeFileName(fj.name);
         var tPath = 'attachments/trainings/t' + id + '/' + encodeURIComponent(safeN);
         var putRes = await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + tPath, {
           method: 'PUT', headers: ghHeaders(),
           body: JSON.stringify({ message: 'upload training file ' + safeN, content: bj, branch: GH.branch })
-        }, 30000);
+        }, uploadTimeout(fj.size));
         if (!putRes.ok) {
           var perr = {}; try { perr = await putRes.json(); } catch(ee) {}
           throw new Error(perr.message || '文件上传失败');
@@ -1275,14 +1299,14 @@ function previewImage(imgEl) {
 // ============ Generic file fetch (dual-mode) ============
 async function fetchFileBlob(path) {
   if (IS_DESKTOP) {
-    var res = await fetchTimed('/api/attachments/download?path=' + encodeURIComponent(path), { headers: authHeaders() }, 20000);
+    var res = await fetchTimed('/api/attachments/download?path=' + encodeURIComponent(path), { headers: authHeaders() }, 300000);
     if (!res.ok) {
       var err = {}; try { err = await res.json(); } catch(ee) {}
       throw new Error(err.error || ('下载失败(HTTP ' + res.status + ')'));
     }
     return await res.blob();
   }
-  var res = await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + encodeURIComponent(path) + '?ref=' + GH.branch, { headers: ghHeaders() }, 25000);
+  var res = await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + encodeURIComponent(path) + '?ref=' + GH.branch, { headers: ghHeaders() }, 300000);
   if (!res.ok) throw new Error('下载失败(HTTP ' + res.status + ')');
   var j = await res.json();
   var bin = atob((j.content || '').replace(/\n/g, ''));
