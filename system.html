@@ -312,6 +312,9 @@ td.check-col input { cursor: pointer; width: 14px; height: 14px; accent-color: v
   border-top: 4px solid var(--primary); border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
+.loading-box { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.loading-text { color: #e2e8f0; font-size: 14px; max-width: 420px; text-align: center; line-height: 1.6; padding: 0 20px; }
+.loading-text b { color: #93c5fd; font-weight: 600; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
 /* Mobile responsive */
@@ -579,7 +582,10 @@ td.check-col input { cursor: pointer; width: 14px; height: 14px; accent-color: v
 
 <!-- Loading overlay -->
 <div class="loading-overlay" id="loadingOverlay" style="display:none">
-  <div class="loading-spinner"></div>
+  <div class="loading-box">
+    <div class="loading-spinner"></div>
+    <div class="loading-text" id="loadingText">处理中，请稍候…</div>
+  </div>
 </div>
 
 <script>
@@ -620,6 +626,11 @@ function fetchTimed(url, options, ms) {
   var ctrl = new AbortController();
   var t = setTimeout(function() { ctrl.abort(); }, ms);
   return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).finally(function() { clearTimeout(t); });
+}
+// 按文件大小动态计算上传/下载超时：基础 60 秒 + 每 1MB 加 10 秒，封顶 10 分钟
+function uploadTimeout(sizeBytes) {
+  var mb = (sizeBytes || 0) / (1024 * 1024);
+  return Math.min(60000 + Math.round(mb * 10000), 600000);
 }
 
 async function ghLoadData() {
@@ -779,7 +790,8 @@ async function saveFieldConfig(modifySettingsFn) {
 
 function now() { return new Date().toISOString().replace('T',' ').substring(0,19); }
 
-function showLoading(show) {
+function showLoading(show, msg) {
+  if (msg) document.getElementById('loadingText').innerHTML = msg;
   document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none';
 }
 
@@ -1513,6 +1525,9 @@ function renderFieldInput(field, value, readonly) {
 }
 
 // ============ 附件上传/下载/删除 ============
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 function fmtSize(bytes) {
   bytes = parseInt(bytes) || 0;
   if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
@@ -1561,14 +1576,16 @@ async function uploadAttachments(fieldKey, files, inputEl) {
   var rec = records.find(function(r) { return r.id === editingRecordId; });
   if (!rec || !rec.id) { alert('请先保存记录，再上传附件'); if (inputEl) inputEl.value = ''; return; }
   if (!files || files.length === 0) return;
-  showLoading(true);
+  var totalN = files.length;
+  showLoading(true, '正在上传 ' + totalN + ' 个附件…<br>请勿关闭页面，大文件可能需要几分钟');
   try {
     var atts = parseAtts(rec[fieldKey]);
     for (var i = 0; i < files.length; i++) {
       var f = files[i];
       if (f.size > 100 * 1024 * 1024) { alert('文件 "' + f.name + '" 超过 100MB 上限，已跳过'); continue; }
+      showLoading(true, '正在上传 <b>(' + (i + 1) + '/' + totalN + ') ' + esc(f.name) + '</b>（' + fmtSize(f.size) + '）…<br>请勿关闭页面，大文件可能需要几分钟');
       var b64 = await fileToBase64(f);
-      var meta = await uploadFile(rec, fieldKey, f.name, b64);
+      var meta = await uploadFile(rec, fieldKey, f.name, b64, f.size);
       if (meta) atts.push(meta);
     }
     rec[fieldKey] = JSON.stringify(atts);
@@ -1580,14 +1597,14 @@ async function uploadAttachments(fieldKey, files, inputEl) {
     if (inputEl) inputEl.value = '';
   }
 }
-async function uploadFile(rec, fieldKey, filename, base64) {
+async function uploadFile(rec, fieldKey, filename, base64, sizeBytes) {
   var folder = getRecordFolder(rec);
   var ghPath = 'attachments/' + folder + '/' + filename;
   if (IS_DESKTOP) {
     var res = await fetchTimed('/api/attachments', {
       method: 'POST', headers: authHeaders(),
       body: JSON.stringify({ record_id: rec.id, field_key: fieldKey, path: ghPath, filename: filename, base64: base64 })
-    }, 30000);
+    }, uploadTimeout(sizeBytes));
     if (!res.ok) {
       var err = {}; try { err = await res.json(); } catch(e) {}
       throw new Error(err.error || ('上传失败(HTTP ' + res.status + ')'));
@@ -1599,7 +1616,7 @@ async function uploadFile(rec, fieldKey, filename, base64) {
     var res = await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + encodeURIComponent(ghPath), {
       method: 'PUT', headers: ghHeaders(),
       body: JSON.stringify({ message: 'upload ' + filename, content: base64, branch: GH.branch })
-    }, 30000);
+    }, uploadTimeout(sizeBytes));
     if (!res.ok) {
       var err = {}; try { err = await res.json(); } catch(e) {}
       throw new Error(err.message || ('上传失败(HTTP ' + res.status + ')'));
@@ -1669,11 +1686,11 @@ async function getGitHubFileSha(ghPath) {
 }
 async function fetchAttachmentBlob(path) {
   if (IS_DESKTOP) {
-    var res = await fetchTimed('/api/attachments/download?path=' + encodeURIComponent(path), { headers: authHeaders() }, 20000);
+    var res = await fetchTimed('/api/attachments/download?path=' + encodeURIComponent(path), { headers: authHeaders() }, 300000);
     if (!res.ok) throw new Error('附件下载失败(HTTP ' + res.status + ')');
     return await res.blob();
   } else {
-    var res = await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + encodeURIComponent(path) + '?ref=' + GH.branch, { headers: ghHeaders() }, 20000);
+    var res = await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + encodeURIComponent(path) + '?ref=' + GH.branch, { headers: ghHeaders() }, 300000);
     if (!res.ok) throw new Error('附件下载失败(HTTP ' + res.status + ')');
     var j = await res.json();
     var bin = atob((j.content || '').replace(/\n/g, ''));
