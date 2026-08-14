@@ -3,9 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>民企清欠进度管理系统</title>
+<title>民企清欠工作平台</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
 :root {
   --bg: #0f172a;
@@ -19,6 +18,9 @@
   --warning: #f59e0b;
   --success: #22c55e;
   --info: #06b6d4;
+  --purple: #a855f7;
+  --pink: #ec4899;
+  --orange: #f97316;
   --overdue-bg: #7f1d1d33;
   --warning-bg: #78350f33;
   --success-bg: #064e3b33;
@@ -26,45 +28,25 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  background: var(--bg);
-  color: var(--text);
+  background: linear-gradient(160deg, #0f172a 0%, #1e1b4b 55%, #172554 100%);
   min-height: 100vh;
+  color: var(--text);
 }
-.container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+.container { max-width: 1320px; margin: 0 auto; padding: 24px 20px 60px; }
 
-/* Header */
+/* ===== Header ===== */
 .header {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 16px 24px; background: var(--card); border-radius: 12px;
-  margin-bottom: 20px; border: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;
+  padding: 18px 26px; background: rgba(30,41,59,.85); backdrop-filter: blur(8px);
+  border-radius: 16px; margin-bottom: 26px; border: 1px solid var(--border);
+  box-shadow: 0 8px 24px rgba(0,0,0,.25);
 }
-.header h1 { font-size: 20px; font-weight: 600; }
-.header h1 span { color: var(--primary); }
-.header-right { display: flex; align-items: center; gap: 16px; }
+.brand h1 { font-size: 24px; font-weight: 700; letter-spacing: .5px; }
+.brand h1 span { background: linear-gradient(90deg, #60a5fa, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.brand .subtitle { font-size: 12px; color: var(--text-secondary); margin-top: 3px; letter-spacing: 1px; }
+.header-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .user-info { font-size: 14px; color: var(--text-secondary); }
 .user-info strong { color: var(--text); }
-.btn {
-  padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer;
-  font-size: 14px; font-weight: 500; transition: all .2s;
-}
-.btn-primary { background: var(--primary); color: #fff; }
-.btn-primary:hover { background: var(--primary-hover); }
-.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
-.btn-danger { background: var(--danger); color: #fff; }
-.btn-danger:hover { background: #dc2626; }
-.btn-outline {
-  background: transparent; color: var(--text); border: 1px solid var(--border);
-}
-.btn-outline:hover { background: var(--border); }
-.btn-sm { padding: 4px 10px; font-size: 12px; }
-.btn-success { background: var(--success); color: #fff; }
-.btn-success:hover { background: #16a34a; }
-.btn-export {
-  background: #7c3aed; color: #fff;
-}
-.btn-export:hover { background: #6d28d9; }
-
-/* Sync badge */
 .sync-badge {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 4px 10px; border-radius: 20px; font-size: 12px;
@@ -72,520 +54,411 @@ body {
 }
 .sync-badge.online { background: #064e3b33; color: #22c55e; border-color: #22c55e55; }
 .sync-badge.offline { background: #7f1d1d33; color: #ef4444; border-color: #ef444455; }
+.sync-badge.syncing { background: #1e3a8a33; color: #60a5fa; border-color: #3b82f655; }
 .sync-badge .dot { width: 8px; height: 8px; border-radius: 50%; }
 .sync-badge.online .dot { background: #22c55e; }
 .sync-badge.offline .dot { background: #ef4444; }
-.sync-badge.syncing { background: #1e3a8a33; color: #60a5fa; border-color: #3b82f655; }
 .sync-badge.syncing .dot { background: #60a5fa; animation: pulse 1s infinite; }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
 
-/* Type filter tabs */
-.type-filter {
-  display: flex; gap: 6px; margin-bottom: 16px;
+/* ===== Buttons ===== */
+.btn {
+  padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer;
+  font-size: 14px; font-weight: 500; transition: all .2s;
+  display: inline-flex; align-items: center; gap: 6px;
 }
-.type-tab {
-  padding: 8px 20px; border: 1px solid var(--border); background: transparent;
-  color: var(--text-secondary); cursor: pointer; border-radius: 8px;
-  font-size: 13px; font-weight: 500; transition: all .2s;
-}
-.type-tab.active { background: var(--primary); border-color: var(--primary); color: #fff; }
-.type-tab:hover:not(.active) { border-color: var(--text-secondary); }
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: var(--primary-hover); }
+.btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border); }
+.btn-outline:hover { background: var(--border); }
+.btn-sm { padding: 5px 12px; font-size: 12px; }
+.btn-success { background: var(--success); color: #fff; }
+.btn-success:hover { background: #16a34a; }
+.btn-purple { background: var(--purple); color: #fff; }
+.btn-purple:hover { background: #9333ea; }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-danger:hover { background: #dc2626; }
+.btn:disabled { opacity: .55; cursor: not-allowed; }
 
-/* Stats */
-.stats-row {
-  display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px;
-  margin-bottom: 20px;
+/* ===== Portal Grid ===== */
+.portal-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px;
 }
-.stat-card {
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: 12px; padding: 20px; text-align: center;
+@media (max-width: 1100px) { .portal-grid { grid-template-columns: 1fr; } }
+.portal-card {
+  background: rgba(30,41,59,.9); backdrop-filter: blur(8px);
+  border: 1px solid var(--border); border-radius: 18px; overflow: hidden;
+  display: flex; flex-direction: column; min-height: 460px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.3);
+  transition: transform .2s, box-shadow .2s;
 }
-.stat-card .value { font-size: 32px; font-weight: 700; }
-.stat-card .label { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
-.stat-card.overdue .value { color: var(--danger); }
-.stat-card.upcoming .value { color: var(--warning); }
-.stat-card.completed .value { color: var(--success); }
-.stat-card.in-progress .value { color: var(--info); }
-
-/* Table */
-.table-wrapper {
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: 12px; overflow: hidden;
-}
-.table-header {
+.portal-card:hover { transform: translateY(-3px); box-shadow: 0 14px 40px rgba(0,0,0,.4); }
+.card-accent { height: 6px; }
+.accent-policy { background: linear-gradient(90deg, #3b82f6, #06b6d4); }
+.accent-training { background: linear-gradient(90deg, #a855f7, #ec4899); }
+.accent-record { background: linear-gradient(90deg, #f59e0b, #ef4444); }
+.card-head {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 16px 20px; border-bottom: 1px solid var(--border);
+  padding: 20px 22px 6px;
 }
-.table-header h2 { font-size: 16px; }
-.table-controls { display: flex; gap: 10px; align-items: center; }
-.search-input {
-  padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px;
-  background: var(--bg); color: var(--text); font-size: 13px; width: 200px;
+.card-head h2 { font-size: 19px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.card-badge {
+  font-size: 11px; padding: 3px 10px; border-radius: 20px; font-weight: 600;
+  background: #3b82f61f; color: #60a5fa; border: 1px solid #3b82f655; white-space: nowrap;
 }
-.search-input::placeholder { color: var(--text-secondary); }
-.filter-select {
-  padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px;
-  background: var(--bg); color: var(--text); font-size: 13px;
+.card-badge.purple { background: #a855f71f; color: #c084fc; border-color: #a855f755; }
+.card-badge.orange { background: #f59e0b1f; color: #fbbf24; border-color: #f59e0b55; }
+.card-desc { padding: 4px 22px 12px; font-size: 12px; color: var(--text-secondary); }
+.card-body { flex: 1; padding: 4px 16px 10px; overflow-y: auto; min-height: 220px; max-height: 340px; }
+.card-foot {
+  padding: 14px 22px 18px; display: flex; gap: 10px; flex-wrap: wrap;
+  border-top: 1px solid #33415555;
 }
-table {
-  width: 100%; border-collapse: collapse;
-}
-thead th {
-  background: var(--bg); padding: 10px 12px; font-size: 12px;
-  font-weight: 600; text-align: left; white-space: nowrap;
-  border-bottom: 1px solid var(--border); position: sticky; top: 0;
-  color: var(--text-secondary);
-}
-tbody td {
-  padding: 10px 12px; font-size: 13px; border-bottom: 1px solid rgba(51,65,85,0.5);
-  max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-tbody tr { transition: background .2s; }
-tbody tr:hover { background: rgba(59,130,246,0.08); }
-tbody tr.overdue-row { background: var(--overdue-bg); }
-tbody tr.warning-row { background: var(--warning-bg); }
-tbody tr.completed-row { opacity: 0.7; }
-tbody tr.selected-row { background: rgba(59,130,246,0.18) !important; }
-th.check-col, td.check-col { width: 40px; text-align: center; padding: 8px 6px !important; cursor: default; }
-td.check-col { cursor: pointer; }
-td.check-col input { cursor: pointer; width: 14px; height: 14px; accent-color: var(--primary); }
 
-/* Batch toolbar */
-.batch-toolbar {
-  display: none; align-items: center; gap: 12px;
-  padding: 10px 20px; background: rgba(59,130,246,0.12);
-  border-bottom: 1px solid var(--primary);
+/* ===== Policy list ===== */
+.list-empty { text-align: center; color: var(--text-secondary); font-size: 13px; padding: 30px 10px; }
+.list-empty .emoji { font-size: 34px; display: block; margin-bottom: 8px; }
+.policy-item {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px;
+  background: #0f172a55; transition: background .15s;
 }
-.batch-toolbar.active { display: flex; }
-.batch-toolbar .batch-info { font-size: 13px; color: var(--text); }
-.batch-toolbar .batch-info strong { color: var(--primary); }
-.batch-toolbar .btn-batch {
-  padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer;
-  font-size: 13px; font-weight: 500; transition: all .2s;
+.policy-item:hover { background: #0f172a99; }
+.policy-icon {
+  width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
+  background: linear-gradient(135deg, #3b82f633, #06b6d433);
 }
-.batch-toolbar .btn-batch-danger { background: var(--danger); color: #fff; }
-.batch-toolbar .btn-batch-danger:hover { background: #dc2626; }
-.batch-toolbar .btn-batch-info { background: var(--info); color: #fff; }
-.batch-toolbar .btn-batch-info:hover { opacity: 0.85; }
-.batch-toolbar .btn-batch-cancel { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
-.batch-toolbar .btn-batch-cancel:hover { color: var(--text); border-color: var(--text); }
+.policy-info { flex: 1; min-width: 0; }
+.policy-title { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.policy-meta { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+.policy-meta .dl-count { color: #60a5fa; font-weight: 600; }
+.policy-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+.icon-btn {
+  width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border);
+  background: transparent; color: var(--text-secondary); cursor: pointer; font-size: 14px;
+  display: flex; align-items: center; justify-content: center; transition: all .15s;
+}
+.icon-btn:hover { background: #3b82f633; color: #60a5fa; border-color: #3b82f655; }
+.icon-btn.danger:hover { background: #ef444433; color: var(--danger); border-color: #ef444455; }
 
-/* Batch stats modal */
-.stats-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 20px; }
-.stats-item {
-  background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
-  padding: 16px; text-align: center;
+/* ===== Training list ===== */
+.training-item {
+  border: 1px solid var(--border); border-radius: 12px; margin-bottom: 10px;
+  background: #0f172a55; overflow: hidden;
 }
-.stats-item .stats-val { font-size: 24px; font-weight: 700; color: var(--primary); }
-.stats-item .stats-label { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
-
-.status-badge {
-  display: inline-block; padding: 2px 8px; border-radius: 4px;
-  font-size: 11px; font-weight: 500;
+.training-head {
+  display: flex; align-items: center; gap: 10px; padding: 12px 14px; cursor: pointer;
 }
-.status-overdue { background: var(--danger); color: #fff; }
-.status-warning { background: var(--warning); color: #000; }
-.status-normal { background: var(--info); color: #fff; }
-.status-completed { background: var(--success); color: #fff; }
+.training-head:hover { background: #0f172a99; }
+.training-icon {
+  width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
+  background: linear-gradient(135deg, #a855f733, #ec489933);
+}
+.training-info { flex: 1; min-width: 0; }
+.training-name { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.training-meta { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+.training-arrow { color: var(--text-secondary); font-size: 12px; transition: transform .2s; }
+.training-item.open .training-arrow { transform: rotate(90deg); }
+.training-files { display: none; padding: 4px 14px 12px; border-top: 1px dashed #33415588; }
+.training-item.open .training-files { display: block; }
+.tfile-item {
+  display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 8px;
+  font-size: 12px; color: var(--text); transition: background .15s;
+}
+.tfile-item:hover { background: #33415533; }
+.tfile-item .tfile-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tfile-item .tfile-size { color: var(--text-secondary); font-size: 11px; white-space: nowrap; }
+.tfile-img { max-width: 90px; max-height: 60px; border-radius: 6px; object-fit: cover; cursor: pointer; border: 1px solid var(--border); }
+.tfile-img:hover { opacity: .85; }
+.tfile-more { font-size: 11px; color: var(--text-secondary); padding: 4px 8px; }
 
-/* Modal */
+/* ===== Record progress ===== */
+.record-stats { padding: 6px 22px; }
+.rec-nums { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 14px; }
+.rec-num {
+  background: #0f172a55; border: 1px solid var(--border); border-radius: 12px;
+  padding: 14px 8px; text-align: center;
+}
+.rec-num .v { font-size: 26px; font-weight: 700; line-height: 1.1; }
+.rec-num .l { font-size: 11px; color: var(--text-secondary); margin-top: 3px; }
+.rec-num.total .v { color: #60a5fa; }
+.rec-num.doing .v { color: #fbbf24; }
+.rec-num.done .v { color: #34d399; }
+.rec-num.delay .v { color: #f472b6; }
+.rec-num.overdue .v { color: #f87171; }
+.rec-num.soon .v { color: #fb923c; }
+.progress-wrap { margin: 8px 0 16px; }
+.progress-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+.progress-bar { height: 12px; border-radius: 8px; background: #33415566; overflow: hidden; }
+.progress-fill {
+  height: 100%; border-radius: 8px;
+  background: linear-gradient(90deg, #34d399, #22c55e);
+  transition: width .5s ease;
+}
+.enter-btn {
+  width: calc(100% - 44px); margin: 4px 22px 0; padding: 14px;
+  border: none; border-radius: 12px; cursor: pointer; font-size: 15px; font-weight: 700;
+  color: #fff; letter-spacing: 1px;
+  background: linear-gradient(90deg, #f59e0b, #ef4444);
+  transition: all .2s; box-shadow: 0 6px 18px rgba(239,68,68,.25);
+}
+.enter-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(239,68,68,.4); }
+.enter-btn .arrow { display: inline-block; margin-left: 6px; }
+
+/* ===== Modal ===== */
 .modal-overlay {
-  display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.7); z-index: 100;
-  justify-content: center; align-items: flex-start; padding: 40px 20px;
-  overflow-y: auto;
+  display: none; position: fixed; inset: 0; z-index: 100;
+  background: rgba(2,6,23,.75); backdrop-filter: blur(4px);
+  align-items: flex-start; justify-content: center; padding: 40px 16px; overflow-y: auto;
 }
-.modal-overlay.active { display: flex; }
+.modal-overlay.show { display: flex; }
 .modal {
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: 16px; width: 100%; max-width: 900px;
-  max-height: 85vh; overflow-y: auto;
+  background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+  width: 100%; max-width: 560px; padding: 24px; box-shadow: 0 20px 60px rgba(0,0,0,.5);
 }
-.modal-header {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 20px 24px; border-bottom: 1px solid var(--border);
-  position: sticky; top: 0; background: var(--card); z-index: 10;
+.modal.wide { max-width: 900px; }
+.modal h3 { font-size: 17px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center; }
+.modal-close { cursor: pointer; color: var(--text-secondary); font-size: 20px; background: none; border: none; }
+.modal-close:hover { color: var(--text); }
+.form-group { margin-bottom: 14px; }
+.form-group label { display: block; font-size: 12px; color: var(--text-secondary); font-weight: 500; margin-bottom: 5px; }
+.form-group input[type=text], .form-group input[type=date], .form-group input[type=password] {
+  width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg); color: var(--text); font-size: 13px; font-family: inherit;
 }
-.modal-header h3 { font-size: 18px; }
-.modal-close {
-  background: none; border: none; color: var(--text-secondary);
-  font-size: 24px; cursor: pointer;
+.form-group input:focus { outline: none; border-color: var(--primary); }
+.file-drop {
+  border: 1.5px dashed #3b82f655; border-radius: 10px; padding: 18px; text-align: center;
+  cursor: pointer; color: var(--text-secondary); font-size: 13px; transition: all .15s;
+  background: #3b82f60d;
 }
-.modal-body { padding: 24px; }
-.modal-footer {
-  padding: 16px 24px; border-top: 1px solid var(--border);
-  display: flex; justify-content: flex-end; gap: 10px;
-  position: sticky; bottom: 0; background: var(--card);
+.file-drop:hover { border-color: var(--primary); color: var(--text); background: #3b82f61a; }
+.file-drop.has-files { border-color: var(--success); color: var(--success); }
+.file-list { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.file-tag {
+  display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 7px 10px;
+  background: #0f172a55; border: 1px solid var(--border); border-radius: 8px;
 }
+.file-tag .fn { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-tag .fs { color: var(--text-secondary); font-size: 11px; }
+.file-tag .rm { cursor: pointer; color: var(--danger); background: none; border: none; font-size: 14px; }
+.modal-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
 
-/* Form */
-.form-section { margin-bottom: 24px; }
-.form-section h4 {
-  font-size: 14px; color: var(--primary); margin-bottom: 12px;
-  padding-bottom: 6px; border-bottom: 1px solid var(--border);
+/* ===== Stats table ===== */
+.stats-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.stats-tab {
+  padding: 6px 14px; border-radius: 8px; border: 1px solid var(--border);
+  background: transparent; color: var(--text-secondary); cursor: pointer; font-size: 13px;
 }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.form-row-3 { grid-template-columns: 1fr 1fr 1fr; }
-.form-row-1 { grid-template-columns: 1fr; }
-.form-group { display: flex; flex-direction: column; gap: 4px; }
-.form-group label {
-  font-size: 12px; color: var(--text-secondary); font-weight: 500;
+.stats-tab.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.stats-table-wrap { max-height: 380px; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; }
+table.stats { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.stats th {
+  position: sticky; top: 0; background: #0f172a; color: var(--text-secondary);
+  padding: 9px 10px; text-align: left; font-weight: 600; border-bottom: 1px solid var(--border);
+  white-space: nowrap; z-index: 1;
 }
-.form-group label.blue-field { color: var(--info); }
-.form-group input, .form-group select, .form-group textarea {
-  padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px;
-  background: var(--bg); color: var(--text); font-size: 13px;
-  font-family: inherit;
-}
-.form-group textarea { resize: vertical; min-height: 60px; }
-.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
-  outline: none; border-color: var(--primary);
-}
-.form-group input[readonly], .form-group textarea[readonly], .form-group select[disabled] {
-  background: #33415533; color: var(--text-secondary); cursor: not-allowed;
-}
+table.stats td { padding: 8px 10px; border-bottom: 1px solid #33415544; white-space: nowrap; }
+table.stats td.num { text-align: center; font-weight: 600; }
+table.stats tr:hover td { background: #33415533; }
+.stats-summary { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 12px; font-size: 12px; color: var(--text-secondary); }
+.stats-summary b { color: #60a5fa; font-size: 16px; }
 
-/* 附件上传组件 */
-.att-wrap { display: flex; flex-direction: column; gap: 6px; width: 100%; }
-.att-item {
-  display: flex; align-items: center; gap: 8px;
-  background: #33415533; border: 1px solid var(--border);
-  border-radius: 8px; padding: 6px 10px; font-size: 13px;
-}
-.att-icon { font-size: 14px; }
-.att-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
-.att-size { color: var(--text-secondary); font-size: 12px; white-space: nowrap; }
-.att-dl {
-  color: var(--primary); text-decoration: none; font-weight: bold;
-  padding: 2px 6px; border-radius: 6px; cursor: pointer; font-size: 14px;
-}
-.att-dl:hover { background: #3b82f633; }
-.att-del {
-  background: none; border: none; color: var(--danger); cursor: pointer;
-  font-size: 14px; padding: 2px 6px; border-radius: 6px; line-height: 1;
-}
-.att-del:hover { background: #ef444433; }
-.att-upload { display: flex; align-items: center; gap: 10px; }
-.att-upload-btn {
-  display: inline-block; padding: 6px 14px; border: 1px dashed var(--primary);
-  color: var(--primary); border-radius: 8px; cursor: pointer; font-size: 13px;
-  background: #3b82f61a; transition: all .15s;
-}
-.att-upload-btn:hover { background: #3b82f633; }
-.att-hint { color: var(--text-secondary); font-size: 12px; }
-
-/* Tabs */
-.tabs { display: flex; gap: 4px; margin-bottom: 16px; }
-.tab {
-  padding: 6px 16px; border: none; background: transparent;
-  color: var(--text-secondary); cursor: pointer; border-radius: 8px;
-  font-size: 13px;
-}
-.tab.active { background: var(--primary); color: #fff; }
-
-/* Progress logs */
-.log-entry {
-  padding: 10px 12px; border-left: 3px solid var(--border);
-  margin-bottom: 8px; font-size: 12px;
-}
-.log-entry .log-time { color: var(--text-secondary); font-size: 11px; }
-.log-entry .log-user { color: var(--primary); font-weight: 500; }
-
-/* Settings */
-.settings-field-row {
-  display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end;
-}
-.cf-item {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 8px 12px; border: 1px solid var(--border);
-  border-radius: 8px; margin-bottom: 6px; background: var(--bg);
-}
-
-/* Loading indicator */
+/* ===== Loading ===== */
 .loading-overlay {
-  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(15,23,42,0.8); z-index: 200;
-  display: flex; justify-content: center; align-items: center;
+  position: fixed; inset: 0; z-index: 200; background: rgba(2,6,23,.6);
+  display: none; align-items: center; justify-content: center;
 }
-.loading-spinner {
-  width: 40px; height: 40px; border: 4px solid var(--border);
-  border-top: 4px solid var(--primary); border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+.loading-overlay.show { display: flex; }
+.spinner {
+  width: 42px; height: 42px; border: 4px solid #334155; border-top-color: #3b82f6;
+  border-radius: 50%; animation: spin .8s linear infinite;
 }
-@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+@keyframes spin { to { transform: rotate(360deg); } }
 
-/* Mobile responsive */
-@media (max-width: 768px) {
-  .stats-row { grid-template-columns: repeat(4, 1fr); }
-  .form-row { grid-template-columns: 1fr; }
-  .header { flex-direction: column; gap: 12px; }
+/* ===== Login ===== */
+.login-wrap { display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+.login-box {
+  background: var(--card); padding: 40px; border-radius: 16px; width: 380px;
+  border: 1px solid var(--border); box-shadow: 0 20px 60px rgba(0,0,0,.45);
 }
+.login-box h2 { text-align: center; margin-bottom: 6px; font-size: 22px; }
+.login-box .login-sub { text-align: center; font-size: 12px; color: var(--text-secondary); margin-bottom: 24px; }
+.login-box .form-group input { padding: 11px 12px; }
+.login-box .btn { width: 100%; padding: 11px; justify-content: center; }
+.login-hint { text-align: center; margin-top: 14px; font-size: 12px; color: var(--text-secondary); }
+.login-version { text-align: center; margin-top: 8px; font-size: 11px; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
 </style>
 </head>
 <body>
-<div class="container">
+
+<div class="container" id="mainApp" style="display:none">
   <!-- Header -->
   <div class="header">
-    <h1>民企清欠 <span>进度管理系统</span></h1>
+    <div class="brand">
+      <h1>民企清欠 <span>工作平台</span></h1>
+      <p class="subtitle">政策制度 · 宣贯资料 · 投诉事项 一站式管理</p>
+    </div>
     <div class="header-right">
       <span class="sync-badge" id="syncBadge" style="display:none"></span>
       <span class="user-info" id="userDisplay"></span>
-      <button class="btn btn-outline btn-sm" onclick="logout()">退出</button>
+      <button class="btn btn-outline btn-sm" onclick="location.href='system.html'">📋 投诉管理系统</button>
+      <button class="btn btn-outline btn-sm" onclick="logout()">退出登录</button>
     </div>
   </div>
 
-  <!-- Stats -->
-  <div class="stats-row" id="statsRow"></div>
+  <!-- Three cards -->
+  <div class="portal-grid">
 
-  <!-- Type filter -->
-  <div class="type-filter" id="typeFilter" style="display:none">
-    <button class="type-tab active" onclick="setTypeFilter('all', this)">全部 (0)</button>
-    <button class="type-tab" onclick="setTypeFilter('外部', this)">外部投诉 (0)</button>
-    <button class="type-tab" onclick="setTypeFilter('内部', this)">内部投诉 (0)</button>
-  </div>
-
-  <!-- Table -->
-  <div class="table-wrapper">
-    <div class="table-header">
-      <h2>投诉记录列表</h2>
-      <div class="table-controls">
-        <input class="search-input" type="text" placeholder="搜索投诉事项/项目名称..." oninput="renderTable()" id="searchInput" autocomplete="off">
-        <select class="filter-select" onchange="renderTable()" id="filterStatus">
-          <option value="all">全部状态</option>
-          <option value="overdue">已逾期</option>
-          <option value="upcoming">即将到期</option>
-          <option value="in-progress">办理中</option>
-          <option value="completed">已办结</option>
-        </select>
-        <button class="btn btn-export btn-sm" onclick="exportExcel()" id="btnExport" style="display:none">📦 下载台账及附件</button>
-        <button class="btn btn-outline btn-sm" onclick="openSettings()" id="btnSettings" style="display:none">系统设置</button>
-        <button class="btn btn-primary btn-sm" onclick="openModal()" id="btnNewRecord" style="display:none">+ 新增记录</button>
+    <!-- Card 1: 民企清欠最新政策 -->
+    <div class="portal-card">
+      <div class="card-accent accent-policy"></div>
+      <div class="card-head">
+        <h2>📜 民企清欠最新政策</h2>
+        <span class="card-badge">制度学习</span>
+      </div>
+      <div class="card-desc">管理员上传的最新政策制度文件，点击「下载」即可查看学习（自动记录学习情况）</div>
+      <div class="card-body" id="policyList"></div>
+      <div class="card-foot">
+        <button class="btn btn-primary btn-sm" id="btnAddPolicy" style="display:none" onclick="openPolicyModal()">＋ 上传政策</button>
+        <button class="btn btn-purple btn-sm" id="btnPolicyStats" style="display:none" onclick="openStatsModal()">📊 下载统计</button>
       </div>
     </div>
-    <div class="batch-toolbar" id="batchToolbar">
-      <input type="checkbox" id="selectAll" onchange="toggleSelectAll(this.checked)" style="width:14px;height:14px;accent-color:var(--primary);cursor:pointer" title="全选/取消全选">
-      <span class="batch-info">已选 <strong id="batchCount">0</strong> 条</span>
-      <button class="btn-batch btn-batch-info" onclick="batchStats()">📊 统计分析</button>
-      <button class="btn-batch btn-batch-danger" onclick="batchDelete()">🗑 批量删除</button>
-      <button class="btn-batch btn-batch-cancel" onclick="clearSelection()">取消选择</button>
+
+    <!-- Card 2: 民企清欠宣贯 -->
+    <div class="portal-card">
+      <div class="card-accent accent-training"></div>
+      <div class="card-head">
+        <h2>📢 民企清欠宣贯</h2>
+        <span class="card-badge purple">宣贯资料</span>
+      </div>
+      <div class="card-desc">宣贯会议材料（照片、表格、Word、PPT），点击会议查看资料并下载</div>
+      <div class="card-body" id="trainingList"></div>
+      <div class="card-foot">
+        <button class="btn btn-primary btn-sm" id="btnAddTraining" style="display:none" onclick="openTrainingModal()">＋ 上传宣贯资料</button>
+      </div>
     </div>
-    <div style="overflow-x:auto">
-      <table>
-        <thead id="tableHead">
-        </thead>
-        <tbody id="tableBody"></tbody>
-      </table>
+
+    <!-- Card 3: 投诉事项管理 -->
+    <div class="portal-card">
+      <div class="card-accent accent-record"></div>
+      <div class="card-head">
+        <h2>🗂 投诉事项管理</h2>
+        <span class="card-badge orange">进度跟踪</span>
+      </div>
+      <div class="card-desc">民企清欠投诉事项进度总览，点击进入管理系统进行填报与更新</div>
+      <div class="card-body">
+        <div class="record-stats" id="recordStats"></div>
+      </div>
+      <div class="card-foot">
+        <button class="enter-btn" onclick="enterSystem()">进入管理系统<span class="arrow">→</span></button>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- Modal -->
-<div class="modal-overlay" id="modalOverlay">
+<!-- Login -->
+<div id="loginWrap" style="display:none"></div>
+
+<!-- Loading -->
+<div class="loading-overlay" id="loadingOverlay"><div class="spinner"></div></div>
+
+<!-- Modal: Policy upload -->
+<div class="modal-overlay" id="policyModal">
   <div class="modal">
-    <div class="modal-header">
-      <h3 id="modalTitle">记录详情</h3>
-      <button class="modal-close" onclick="closeModal()">&times;</button>
+    <h3>📜 上传政策文件 <button class="modal-close" onclick="closeModal('policyModal')">✕</button></h3>
+    <div class="form-group">
+      <label>政策 / 制度名称</label>
+      <input type="text" id="policyTitle" placeholder="例如：《民企清欠工作管理办法》" maxlength="200">
     </div>
-    <div class="modal-body" id="modalBody"></div>
-    <div class="modal-footer">
-      <div id="deleteArea" style="display:none">
-        <button class="btn btn-danger btn-sm" onclick="deleteRecord()">删除此记录</button>
+    <div class="form-group">
+      <label>政策文件（PDF / Word / 图片，单个 ≤ 10MB）</label>
+      <div class="file-drop" id="policyDrop" onclick="document.getElementById('policyFile').click()">
+        点击选择文件（仅限 1 个）
       </div>
-      <button class="btn btn-outline" onclick="closeModal()">取消</button>
-      <button class="btn btn-primary" onclick="saveRecord()" id="btnSave">保存</button>
+      <input type="file" id="policyFile" accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.xls,.xlsx,.ppt,.pptx" style="display:none" onchange="handlePolicyFile(this)">
+      <div class="file-list" id="policyFileList"></div>
     </div>
-  </div>
-</div>
-
-<!-- Settings Modal -->
-<div class="modal-overlay" id="settingsOverlay">
-  <div class="modal" style="max-width:700px">
-    <div class="modal-header">
-      <h3>系统设置</h3>
-      <button class="modal-close" onclick="closeSettings()">&times;</button>
-    </div>
-    <div class="modal-body">
-      <!-- Tabs -->
-      <div class="tabs" style="margin-bottom:20px">
-        <button class="tab active" onclick="switchSettingsTab('profile', this)">管理员资料</button>
-        <button class="tab" onclick="switchSettingsTab('users', this)">用户管理</button>
-        <button class="tab" onclick="switchSettingsTab('fields', this)">自定义字段</button>
-      </div>
-      
-      <!-- Profile Tab -->
-      <div id="settingsTabProfile">
-        <div class="form-section">
-          <h4>修改管理员信息</h4>
-          <div class="form-group"><label>显示名称</label><input id="settings_name" placeholder="请输入新的显示名称"></div>
-          <div class="form-group"><label>新密码（留空则不修改）</label><input id="settings_password" type="password" placeholder="至少4位"></div>
-          <div style="margin-top:12px"><button class="btn btn-primary btn-sm" onclick="saveAdminProfile()">保存修改</button></div>
-        </div>
-      </div>
-      
-      <!-- Users Tab -->
-      <div id="settingsTabUsers" style="display:none">
-        <div class="form-section">
-          <h4>用户管理</h4>
-          <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">
-            副管理员可查看/修改/下载所有记录和附件，但不能管理用户和系统设置。协作者只能看到和编辑分配给自己的记录。
-          </p>
-          <div id="collaboratorList" style="margin-bottom:16px"></div>
-          
-          <h4 style="font-size:13px;margin-bottom:8px">添加用户</h4>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
-            <div class="form-group"><label>用户名</label><input id="new_user_username" placeholder="如：zhangsan"></div>
-            <div class="form-group"><label>显示名称</label><input id="new_user_display" placeholder="如：张三"></div>
-            <div class="form-group"><label>初始密码</label><input id="new_user_password" type="text" placeholder="留空则自动用用户名" style="flex:0.8"></div>
-            <div class="form-group"><label>角色</label>
-              <select id="new_user_role" style="padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text)">
-                <option value="user">协作者</option>
-                <option value="sub_admin">副管理员</option>
-              </select>
-            </div>
-          </div>
-          <button class="btn btn-primary btn-sm" onclick="addCollaborator()" style="margin-top:8px">+ 添加用户</button>
-        </div>
-      </div>
-      
-      <!-- Fields Tab -->
-      <div id="settingsTabFields" style="display:none">
-        <div class="form-section">
-          <h4>字段管理</h4>
-          <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">
-            管理录入表单中的所有字段：点击 ▲▼ 调整顺序，点击「编辑」修改名称/权限/选项，点击「删除」移除字段（内置字段删除后数据保留，自定义字段删除会清空该列数据）。也可以隐藏字段或切换填写权限。
-          </p>
-          
-          <!-- Basic section fields -->
-          <div style="margin-bottom:16px">
-            <h4 style="font-size:13px;color:var(--primary);margin-bottom:8px">投诉基本信息</h4>
-            <div id="basicFieldsList"></div>
-          </div>
-          
-          <!-- Detail section fields -->
-          <div style="margin-bottom:16px">
-            <h4 style="font-size:13px;color:var(--info);margin-bottom:8px">核实与办理信息</h4>
-            <div id="detailFieldsList"></div>
-          </div>
-          
-          <!-- Custom section fields -->
-          <div style="margin-bottom:16px">
-            <h4 style="font-size:13px;color:#a78bfa;margin-bottom:8px">自定义字段</h4>
-            <div id="customFieldsList"></div>
-          </div>
-          
-          <h4 style="font-size:13px;margin-bottom:8px;margin-top:16px">添加新字段</h4>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
-            <div class="form-group"><label>字段名称</label><input id="cf_label" placeholder="如：备注说明"></div>
-            <div class="form-group"><label>类型</label>
-              <select id="cf_type" onchange="toggleCfOptions()">
-                <option value="text">文本</option>
-                <option value="textarea">多行文本</option>
-                <option value="select">下拉选择</option>
-                <option value="date">日期</option>
-                <option value="file">附件上传</option>
-              </select>
-            </div>
-            <div class="form-group"><label>填写权限</label>
-              <select id="cf_editableBy">
-                <option value="admin">管理员填写</option>
-                <option value="collab">协作人填写</option>
-              </select>
-            </div>
-            <div class="form-group"><label>所属区域</label>
-              <select id="cf_section">
-                <option value="basic">基本信息</option>
-                <option value="detail">核实与办理</option>
-                <option value="custom">自定义区域</option>
-              </select>
-            </div>
-          </div>
-          <div id="cf_options_area" style="display:none;margin-top:8px">
-            <label style="font-size:12px;color:var(--text-secondary)">下拉选项（每行一个）</label>
-            <textarea id="cf_options" rows="3" placeholder="选项A&#10;选项B&#10;选项C" style="width:100%"></textarea>
-          </div>
-          <button class="btn btn-primary btn-sm" onclick="addCustomField()" style="margin-top:8px">+ 添加字段</button>
-        </div>
-      </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="closeModal('policyModal')">取消</button>
+      <button class="btn btn-primary" onclick="uploadPolicy()">确认上传</button>
     </div>
   </div>
 </div>
 
-<!-- Batch Stats Modal -->
-<div class="modal-overlay" id="batchStatsOverlay">
-  <div class="modal" style="max-width:750px">
-    <div class="modal-header">
-      <h3 id="batchStatsTitle">选中记录统计分析</h3>
-      <button class="modal-close" onclick="document.getElementById('batchStatsOverlay').classList.remove('active')">&times;</button>
+<!-- Modal: Training upload -->
+<div class="modal-overlay" id="trainingModal">
+  <div class="modal">
+    <h3>📢 上传宣贯资料 <button class="modal-close" onclick="closeModal('trainingModal')">✕</button></h3>
+    <div class="form-group">
+      <label>会议名称</label>
+      <input type="text" id="trainingName" placeholder="例如：2026年民企清欠工作宣贯会" maxlength="200">
     </div>
-    <div class="modal-body" id="batchStatsBody"></div>
-  </div>
-</div>
-
-<!-- Field Edit Modal -->
-<div class="modal-overlay" id="fieldEditOverlay">
-  <div class="modal" style="max-width:480px">
-    <div class="modal-header">
-      <h3>修改字段</h3>
-      <button class="modal-close" onclick="closeFieldEdit()">&times;</button>
+    <div class="form-group">
+      <label>会议时间</label>
+      <input type="date" id="trainingTime">
     </div>
-    <div class="modal-body">
-      <div class="form-row">
-        <div class="form-group">
-          <label>字段名称</label>
-          <input id="fe_label" autocomplete="off" placeholder="如：备注说明">
-        </div>
+    <div class="form-group">
+      <label>会议资料（照片 / 图片 / 表格 / Word / PPT，可多选，单个 ≤ 10MB）</label>
+      <div class="file-drop" id="trainingDrop" onclick="document.getElementById('trainingFiles').click()">
+        点击选择多个文件
       </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>填写权限</label>
-          <select id="fe_editableBy">
-            <option value="admin">仅管理员填写</option>
-            <option value="collab">协作人可填</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>类型</label>
-          <select id="fe_type" onchange="feToggleOptions()">
-            <option value="text">文本</option>
-            <option value="textarea">多行文本</option>
-            <option value="select">下拉选择</option>
-            <option value="date">日期</option>
-            <option value="file">附件上传</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>所属区域</label>
-          <select id="fe_section">
-            <option value="basic">基本信息</option>
-            <option value="detail">核实与办理</option>
-            <option value="custom">自定义区域</option>
-          </select>
-        </div>
-      </div>
-      <div id="fe_options_area" style="display:none;margin-top:8px">
-        <label style="font-size:12px;color:var(--text-secondary)">下拉选项（每行一个）</label>
-        <textarea id="fe_options" rows="3" placeholder="选项A&#10;选项B&#10;选项C" style="width:100%"></textarea>
-      </div>
-      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
-        <button class="btn btn-sm" onclick="closeFieldEdit()">取消</button>
-        <button class="btn btn-primary btn-sm" onclick="saveFieldEdit()">保存修改</button>
-      </div>
+      <input type="file" id="trainingFiles" multiple style="display:none" onchange="handleTrainingFiles(this)">
+      <div class="file-list" id="trainingFileList"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="closeModal('trainingModal')">取消</button>
+      <button class="btn btn-primary" onclick="uploadTraining()">确认上传</button>
     </div>
   </div>
 </div>
 
-<!-- Loading overlay -->
-<div class="loading-overlay" id="loadingOverlay" style="display:none">
-  <div class="loading-spinner"></div>
+<!-- Modal: Training detail -->
+<div class="modal-overlay" id="trainingDetailModal">
+  <div class="modal">
+    <h3 id="trainingDetailTitle">宣贯资料 <button class="modal-close" onclick="closeModal('trainingDetailModal')">✕</button></h3>
+    <div id="trainingDetailBody" style="max-height:60vh;overflow-y:auto"></div>
+    <div class="modal-foot" id="trainingDetailFoot"></div>
+  </div>
+</div>
+
+<!-- Modal: Stats -->
+<div class="modal-overlay" id="statsModal">
+  <div class="modal wide">
+    <h3>📊 政策下载统计 <button class="modal-close" onclick="closeModal('statsModal')">✕</button></h3>
+    <div class="stats-summary" id="statsSummary"></div>
+    <div class="stats-tabs">
+      <button class="stats-tab active" id="statsTab0" onclick="showStatsTab(0)">下载明细</button>
+      <button class="stats-tab" id="statsTab1" onclick="showStatsTab(1)">政策汇总</button>
+      <button class="stats-tab" id="statsTab2" onclick="showStatsTab(2)">人员汇总</button>
+    </div>
+    <div class="stats-table-wrap"><table class="stats" id="statsTable"></table></div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="closeModal('statsModal')">关闭</button>
+      <button class="btn btn-success" onclick="exportStats()">⬇ 导出统计 Excel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Image preview modal -->
+<div class="modal-overlay" id="imgPreviewModal" onclick="closeModal('imgPreviewModal')">
+  <div style="max-width:92vw;max-height:90vh;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px">
+    <img id="imgPreview" style="max-width:90vw;max-height:84vh;border-radius:8px;display:block" alt="图片预览">
+  </div>
 </div>
 
 <script>
 // ============================================================
-// GitHub API Backend - Using GitHub repo as database
+// GitHub API Backend - 与管理系统共用同一数据源 data.json
 // ============================================================
-const GH = {
+var GH = {
   token: ['ghp_','uOWL','0LRlc','5Duyo','Eg5ge','CRRPo','1cpcG','R3B7m','Pk'].join(''),
   owner: 'SUNJIA1002',
   repo: 'qingqian-system',
@@ -596,6 +469,17 @@ const GH = {
 // ============ Dual-mode: Desktop (offline) vs Web (GitHub API) ============
 var IS_DESKTOP = (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname === '0.0.0.0');
 var lastSyncInfo = { online: false, lastSync: null, pendingPush: false };
+
+function now() {
+  var d = new Date();
+  function p(n) { return (n < 10 ? '0' : '') + n; }
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+}
+function todayStr() {
+  var d = new Date();
+  function p(n) { return (n < 10 ? '0' : '') + n; }
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
 
 function utf8ToB64(str) {
   var bytes = new TextEncoder().encode(str);
@@ -613,7 +497,12 @@ function b64ToUtf8(b64) {
 function ghHeaders() {
   return { 'Authorization': 'token ' + GH.token, 'Accept': 'application/vnd.github+json' };
 }
-
+function authHeaders() {
+  var headers = { 'Content-Type': 'application/json' };
+  var token = localStorage.getItem('qqToken');
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  return headers;
+}
 function fetchTimed(url, options, ms) {
   ms = ms || 20000;
   var ctrl = new AbortController();
@@ -623,31 +512,25 @@ function fetchTimed(url, options, ms) {
 
 async function ghLoadData() {
   if (IS_DESKTOP) {
-    // Desktop mode: load from local server (works offline)
     var res = await fetchTimed('/api/data', { headers: { 'Content-Type': 'application/json' } }, 10000);
     if (!res.ok) throw new Error('读取本地数据失败(HTTP ' + res.status + ')');
     var data = await res.json();
     if (data._syncStatus) lastSyncInfo = data._syncStatus;
     return { data: data, sha: 'desktop' };
   }
-  // Web mode: load from GitHub API
   var res = await fetchTimed(
     'https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + GH.path + '?ref=' + GH.branch,
     { headers: ghHeaders() }, 15000
   );
   if (!res.ok) throw new Error('读取失败(HTTP ' + res.status + ')，请检查网络');
   var file = await res.json();
-  var content = b64ToUtf8(file.content);
-  return { data: JSON.parse(content), sha: file.sha };
+  return { data: JSON.parse(b64ToUtf8(file.content)), sha: file.sha };
 }
 
 async function ghSaveData(data, sha) {
   if (IS_DESKTOP) {
-    // Desktop mode: save to local server (instant), server handles cloud sync
     var res = await fetchTimed('/api/data', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
     }, 25000);
     if (!res.ok) {
       var err = { message: '' };
@@ -658,14 +541,13 @@ async function ghSaveData(data, sha) {
     if (result.syncStatus) lastSyncInfo = result.syncStatus;
     return 'desktop';
   }
-  // Web mode: save to GitHub API
   var content = utf8ToB64(JSON.stringify(data, null, 2));
   var res = await fetchTimed(
     'https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + GH.path,
     {
       method: 'PUT',
       headers: Object.assign({}, ghHeaders(), { 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ message: 'Update ' + now(), content: content, sha: sha, branch: GH.branch })
+      body: JSON.stringify({ message: 'Portal update ' + now(), content: content, sha: sha, branch: GH.branch })
     }, 25000
   );
   if (!res.ok) {
@@ -677,190 +559,139 @@ async function ghSaveData(data, sha) {
   return result.content.sha;
 }
 
-// Read-Modify-Write with retry for concurrent edits.
-// Uses a short-lived cache to avoid a redundant GET right after a successful PUT (halves latency on web).
+// Read-Modify-Write with retry (same as management system)
 var rmwCache = { data: null, sha: null, at: 0 };
 async function rmw(modifyFn, maxRetries) {
-  maxRetries = maxRetries || 3;
-  for (let i = 0; i < maxRetries; i++) {
+  maxRetries = maxRetries || 4;
+  for (var i = 0; i < maxRetries; i++) {
     try {
-      // Reuse fresh cache (within 3s) to skip the GET round trip
-      let data, sha;
+      var data, sha;
       if (rmwCache.data && Date.now() - rmwCache.at < 3000) {
-        data = rmwCache.data;
-        sha = rmwCache.sha;
+        data = rmwCache.data; sha = rmwCache.sha;
       } else {
-        const loaded = await ghLoadData();
-        data = loaded.data;
-        sha = loaded.sha;
+        var loaded = await ghLoadData();
+        data = loaded.data; sha = loaded.sha;
       }
-      // 数据完整性保护：确保关键计数器存在
-      if (!data.nextRecordId) data.nextRecordId = (data.records || []).reduce(function(max, r) { return (r.id && r.id > max) ? r.id : max; }, 0) + 1;
-      if (!data.nextUserId) data.nextUserId = (data.users || []).reduce(function(max, u) { return (u.id && u.id > max) ? u.id : max; }, 0) + 1;
-      if (!data.nextLogId) data.nextLogId = 1;
-      if (!data.nextCfId) data.nextCfId = 1;
-      if (!data.settings) data.settings = { customFields: [], nextCfId: 1 };
-      if (!data.settings.fieldConfig) {
-        data.settings.fieldConfig = DEFAULT_FIELD_CONFIG.map(function(f) { return Object.assign({}, f); });
-        data.settings.fieldConfigUpdatedAt = now();
-        if (data.settings.customFields && data.settings.customFields.length > 0) {
-          for (var ci = 0; ci < data.settings.customFields.length; ci++) {
-            var cf = data.settings.customFields[ci];
-            data.settings.fieldConfig.push({
-              key: 'cf_' + cf.id, label: cf.label, type: cf.type, options: cf.options || [],
-              section: 'custom', editableBy: 'collab', visible: true, isCustom: true, cfId: cf.id
-            });
-          }
-        }
-      }
-      if (!data.logs) data.logs = [];
+      ensurePortalCollections(data);
       modifyFn(data);
       var newSha = await ghSaveData(data, sha);
-      // Update cache so the next rmw skips GET (web: saves ~1.5s)
       rmwCache.data = data;
       rmwCache.sha = newSha || sha;
       rmwCache.at = Date.now();
       return;
     } catch(e) {
-      // On conflict (stale sha) or network failure: invalidate cache so next attempt re-GETs
       rmwCache.data = null;
       if (i === maxRetries - 1) throw e;
-      console.log('Retry ' + (i+1) + ': ' + e.message);
-      await new Promise(r => setTimeout(r, 700 * (i + 1)));
+      console.log('Retry ' + (i + 1) + ': ' + e.message);
+      await new Promise(function(r) { setTimeout(r, 700 * (i + 1)); });
     }
   }
 }
 
-// Field-config operations: desktop hits the fast /api/settings endpoint (milliseconds),
-// web mode falls back to rmw (GitHub API).
-async function saveFieldConfig(modifySettingsFn) {
-  if (IS_DESKTOP) {
-    // Desktop: read ONLY settings (fast, no full-data round trip), apply change, PUT /api/settings
-    var fresh = await fetchTimed('/api/settings', { headers: authHeaders() }, 10000);
-    if (!fresh.ok) throw new Error('读取配置失败(HTTP ' + fresh.status + ')');
-    var settings = await fresh.json();
-    if (!settings.fieldConfig) {
-      settings.fieldConfig = DEFAULT_FIELD_CONFIG.map(function(f) { return Object.assign({}, f); });
-      settings.fieldConfigUpdatedAt = now();
-    }
-    if (!settings.customFields) settings.customFields = [];
-    if (!settings.nextCfId) settings.nextCfId = 1;
-    modifySettingsFn(settings);
-    settings.fieldConfigUpdatedAt = now(); // bump revision so it wins any merge
-    var res = await fetchTimed('/api/settings', {
-      method: 'PUT',
-      headers: authHeaders(),
-      body: JSON.stringify({ fieldConfig: settings.fieldConfig, customFields: settings.customFields, nextCfId: settings.nextCfId, fieldConfigUpdatedAt: settings.fieldConfigUpdatedAt })
-    }, 10000);
-    if (!res.ok) {
-      var err = {};
-      try { err = await res.json(); } catch(ee) {}
-      throw new Error(err.error || '保存配置失败(HTTP ' + res.status + ')');
-    }
-    // Update local state
-    fieldConfig = settings.fieldConfig;
-    customFields = settings.customFields || [];
-    // Make sure existing records carry the new/removed custom keys
-    records.forEach(function(r) {
-      settings.fieldConfig.forEach(function(f) { if (f.isCustom && r[f.key] === undefined) r[f.key] = ''; });
-    });
-    return;
-  }
-  // Web mode: rmw with cache + bump timestamp
-  await rmw(function(store) {
-    ensureFieldConfig(store);
-    if (!store.settings.fieldConfigUpdatedAt) store.settings.fieldConfigUpdatedAt = now();
-    modifySettingsFn(store.settings);
-    store.settings.fieldConfigUpdatedAt = now();
+function ensurePortalCollections(data) {
+  if (!data.policies) data.policies = [];
+  if (!data.trainings) data.trainings = [];
+  if (!data.nextPolicyId) data.nextPolicyId = 1;
+  if (!data.nextTrainingId) data.nextTrainingId = 1;
+  if (!data.nextDownloadId) data.nextDownloadId = 1;
+  if (!data.nextRecordId) data.nextRecordId = (data.records || []).reduce(function(max, r) { return (r.id && r.id > max) ? r.id : max; }, 0) + 1;
+  if (!data.nextUserId) data.nextUserId = (data.users || []).reduce(function(max, u) { return (u.id && u.id > max) ? u.id : max; }, 0) + 1;
+}
+
+// ============ Helpers ============
+function fmtSize(n) {
+  if (!n && n !== 0) return '';
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+  return (n / 1024 / 1024).toFixed(2) + ' MB';
+}
+function fileToBase64(file) {
+  return new Promise(function(resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function() { resolve(reader.result.split(',')[1] || ''); };
+    reader.onerror = function() { reject(new Error('读取文件失败')); };
+    reader.readAsDataURL(file);
   });
-  await loadRecords();
 }
-
-function now() { return new Date().toISOString().replace('T',' ').substring(0,19); }
-
-function showLoading(show) {
-  document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none';
+function safeFileName(name) {
+  return String(name || '').replace(/[\\/:*?"<>|]/g, '_').substring(0, 200);
 }
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+// 用于内联 onclick 的 JS 字符串安全转义（防单引号破坏）
+function escJs(s) {
+  return esc(s).replace(/'/g, "\\'");
+}
+function showLoading(on) { document.getElementById('loadingOverlay').classList.toggle('show', !!on); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+function openModal(id) { document.getElementById(id).classList.add('show'); }
 
-// ============================================================
-// State
-// ============================================================
-let currentUser = null;
-let records = [];
-let users = [];
-let customFields = [];
-let fieldConfig = [];
-let editingRecordId = null;
-let typeFilter = 'all';
-// Permission shortcuts (set in checkAuth)
-let isSuperAdmin = false;   // only admin: manage users, assign records, field config, delete records
-let isAdminLike = false;    // admin + sub_admin: view/edit/download all records & attachments
+// ============ Auth ============
+var currentUser = null;
+var isSuperAdmin = false;
+var isAdminLike = false;
 
-// ============================================================
-// Auth
-// ============================================================
 function checkAuth() {
-  const userStr = localStorage.getItem('qqUser');
+  var userStr = localStorage.getItem('qqUser');
   if (!userStr) { showLogin(); return; }
   try {
     currentUser = JSON.parse(userStr);
     isSuperAdmin = currentUser.role === 'admin';
     isAdminLike = currentUser.role === 'admin' || currentUser.role === 'sub_admin';
     var roleLabel = currentUser.role === 'admin' ? '管理员' : (currentUser.role === 'sub_admin' ? '副管理员' : '填写人');
-    document.getElementById('userDisplay').innerHTML =
-      '<strong>' + currentUser.display_name + '</strong> (' + roleLabel + ')';
+    document.getElementById('userDisplay').innerHTML = '<strong>' + esc(currentUser.display_name) + '</strong> (' + roleLabel + ')';
+    document.getElementById('mainApp').style.display = 'block';
     init();
   } catch(e) { showLogin(); }
 }
 
 function showLogin() {
-  document.body.innerHTML = '\
-    <div style="display:flex;justify-content:center;align-items:center;min-height:100vh">\
-      <div style="background:var(--card);padding:40px;border-radius:16px;width:380px;border:1px solid var(--border)">\
-        <h2 style="text-align:center;margin-bottom:24px">民企清欠进度管理</h2>\
-        <div style="margin-bottom:12px">\
-          <label style="font-size:13px;color:var(--text-secondary)">用户名</label>\
-          <input id="loginUser" autocomplete="username" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);margin-top:4px" placeholder="请输入用户名">\
+  var wrap = document.getElementById('loginWrap');
+  wrap.innerHTML = '\
+    <div class="login-wrap">\
+      <div class="login-box">\
+        <h2>民企清欠 <span style="background:linear-gradient(90deg,#60a5fa,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent">工作平台</span></h2>\
+        <p class="login-sub">政策制度 · 宣贯资料 · 投诉事项</p>\
+        <div class="form-group">\
+          <label>用户名</label>\
+          <input id="loginUser" autocomplete="username" placeholder="请输入用户名">\
         </div>\
-        <div style="margin-bottom:16px">\
-          <label style="font-size:13px;color:var(--text-secondary)">密码</label>\
-          <input id="loginPass" type="password" autocomplete="current-password" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);margin-top:4px" placeholder="请输入密码" onkeydown="if(event.key===\'Enter\')doLogin()">\
+        <div class="form-group">\
+          <label>密码</label>\
+          <input id="loginPass" type="password" autocomplete="current-password" placeholder="请输入密码" onkeydown="if(event.key===\'Enter\')doLogin()">\
         </div>\
-        <button onclick="doLogin()" id="loginBtn" style="width:100%;padding:10px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px">登录</button>\
-        <p style="text-align:center;margin-top:12px;font-size:12px;color:var(--text-secondary)">协作者账号由管理员在"系统设置 - 用户管理"中创建</p>\
-        ' + (IS_DESKTOP ? '<p style="text-align:center;margin-top:8px;font-size:11px;color:#22c55e">● 桌面版（离线可用，自动同步）</p>' : '<p style="text-align:center;margin-top:8px;font-size:11px;color:var(--text-secondary)">● 网页版（需联网）</p>') + '\
+        <button class="btn btn-primary" id="loginBtn" onclick="doLogin()">登 录</button>\
+        <p class="login-hint">协作者账号由管理员在管理系统中创建</p>\
+        <p class="login-version">' + (IS_DESKTOP ? '● 桌面版（离线可用，自动同步）' : '● 网页版（需联网）') + '</p>\
       </div>\
     </div>';
+  wrap.style.display = 'block';
 }
 
 async function doLogin() {
-  const username = document.getElementById('loginUser').value.trim();
-  const password = document.getElementById('loginPass').value;
+  var username = document.getElementById('loginUser').value.trim();
+  var password = document.getElementById('loginPass').value;
   if (!username || !password) { alert('请输入用户名和密码'); return; }
-  
-  const btn = document.getElementById('loginBtn');
+  var btn = document.getElementById('loginBtn');
   if (btn) { btn.textContent = '验证中...'; btn.disabled = true; }
-  
   try {
-    const { data } = await ghLoadData();
-    const user = data.users.find(function(u) { return u.username === username && u.password === password; });
+    var loaded = await ghLoadData();
+    var data = loaded.data;
+    var user = data.users.find(function(u) { return u.username === username && u.password === password; });
     if (!user) { alert('用户名或密码错误'); showLogin(); return; }
-    
-    // Desktop mode: get JWT token for REST API
     if (IS_DESKTOP) {
       try {
         var res = await fetchTimed('/api/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username: username, password: password })
         }, 10000);
         if (res.ok) {
           var result = await res.json();
           localStorage.setItem('qqToken', result.token);
         }
-      } catch(e) { /* REST API login failed, fallback to rmw mode */ }
+      } catch(e) {}
     }
-    
     localStorage.setItem('qqUser', JSON.stringify({
       id: user.id, username: user.username, display_name: user.display_name, role: user.role
     }));
@@ -877,31 +708,33 @@ function logout() {
   location.reload();
 }
 
-// ============================================================
-// Init & Data Loading
-// ============================================================
+function enterSystem() { location.href = 'system.html'; }
+
+// ============ State ============
+var policies = [];
+var trainings = [];
+var records = [];
+var users = [];
+var statsTab = 0;
+
+// ============ Init ============
 function init() {
-  if (isAdminLike) {
-    document.getElementById('btnNewRecord').style.display = 'inline-block';
-    document.getElementById('btnExport').style.display = 'inline-block';
-    document.getElementById('typeFilter').style.display = 'flex';
+  if (isSuperAdmin || isAdminLike) {
+    document.getElementById('btnPolicyStats').style.display = 'inline-flex';
   }
   if (isSuperAdmin) {
-    document.getElementById('btnSettings').style.display = 'inline-block';
+    document.getElementById('btnAddPolicy').style.display = 'inline-flex';
+    document.getElementById('btnAddTraining').style.display = 'inline-flex';
   }
-  // Show sync badge on desktop mode
   if (IS_DESKTOP) {
     document.getElementById('syncBadge').style.display = 'inline-flex';
     updateSyncBadge();
-    // Auto-refresh every 15s to catch cloud changes synced by server
     setInterval(function() {
-      if (!editingRecordId && !document.getElementById('modalOverlay').style.display.includes('flex')) {
-        loadRecords(true);
-        updateSyncBadge();
-      }
+      var anyModalOpen = document.querySelector('.modal-overlay.show') !== null;
+      if (!anyModalOpen) { loadPortal(true); updateSyncBadge(); }
     }, 15000);
   }
-  loadRecords();
+  loadPortal();
 }
 
 function updateSyncBadge() {
@@ -920,743 +753,544 @@ function updateSyncBadge() {
   }
 }
 
-async function loadRecords(silent) {
+async function loadPortal(silent) {
   if (!silent) showLoading(true);
   try {
-    const { data } = await ghLoadData();
-    users = data.users;
-    customFields = (data.settings && data.settings.customFields) || [];
-    // 加载 fieldConfig，如果不存在则初始化
-    if (data.settings && data.settings.fieldConfig) {
-      fieldConfig = data.settings.fieldConfig;
-    } else {
-      fieldConfig = [];
-    }
-    // 补齐新增内置字段（如附件上传字段）
-    if (data.settings) {
-      ensureFieldConfig(data);
-      fieldConfig = data.settings.fieldConfig;
-    }
-    if (data._syncStatus) {
-      lastSyncInfo = data._syncStatus;
-      updateSyncBadge();
-    }
-    
-    let recs = data.records;
-    if (!isAdminLike) {
-      recs = recs.filter(function(r) { return r.assignee_id === currentUser.id; });
-    }
-    recs.sort(function(a, b) {
-      if (a.deadline && b.deadline) return a.deadline.localeCompare(b.deadline);
-      if (a.deadline) return -1;
-      if (b.deadline) return 1;
-      return b.id - a.id;
-    });
-    recs = recs.map(function(r) {
-      var assignee = data.users.find(function(u) { return u.id === r.assignee_id; });
-      return Object.assign({}, r, { assignee_name: assignee ? assignee.display_name : (r.assignee_name || '') });
-    });
-    records = recs;
-    renderStats();
-    renderTable();
+    var loaded = await ghLoadData();
+    var data = loaded.data;
+    ensurePortalCollections(data);
+    policies = data.policies || [];
+    trainings = data.trainings || [];
+    records = data.records || [];
+    users = data.users || [];
+    if (data._syncStatus) { lastSyncInfo = data._syncStatus; updateSyncBadge(); }
+    renderPolicies();
+    renderTrainings();
+    renderRecordStats();
   } catch(e) {
-    console.error('Load error:', e);
-    alert('加载数据失败: ' + e.message);
+    if (!silent) alert('加载失败: ' + e.message);
   } finally {
-    showLoading(false);
+    if (!silent) showLoading(false);
   }
 }
 
-// ============================================================
-// Stats
-// ============================================================
-function renderStats() {
-  var today = new Date().toISOString().split('T')[0];
-  var wl = new Date(Date.now() + 7*86400000).toISOString().split('T')[0];
-  
-  function isCompleted(r) { return r.handling_status && r.handling_status.indexOf('已办结') >= 0; }
-  function isOverdue(r) { return !isCompleted(r) && r.deadline && r.deadline < today; }
-  function isUpcoming(r) { return !isCompleted(r) && r.deadline && r.deadline >= today && r.deadline <= wl; }
-  function isInProgress(r) { return !isCompleted(r) && r.handling_status && (r.handling_status.indexOf('办理中') >= 0 || r.handling_status.indexOf('延期') >= 0); }
-  
-  var internal = records.filter(function(r) { return r.internal_external === '内部'; });
-  var external = records.filter(function(r) { return r.internal_external === '外部'; });
-  
-  var stats = {
-    total: records.length,
-    internal: internal.length,
-    external: external.length,
-    overdue: records.filter(isOverdue).length,
-    upcoming: records.filter(isUpcoming).length,
-    completed: records.filter(isCompleted).length,
-    inProgress: records.filter(isInProgress).length
-  };
-  
-  document.getElementById('statsRow').innerHTML =
-    '<div class="stat-card overdue"><div class="value">' + stats.overdue + '</div><div class="label">已逾期</div></div>' +
-    '<div class="stat-card upcoming"><div class="value">' + stats.upcoming + '</div><div class="label">7日内到期</div></div>' +
-    '<div class="stat-card in-progress"><div class="value">' + stats.inProgress + '</div><div class="label">办理中</div></div>' +
-    '<div class="stat-card completed"><div class="value">' + stats.completed + '</div><div class="label">已办结</div></div>';
-  
-  var tabs = document.querySelectorAll('.type-tab');
-  if (tabs.length >= 3) {
-    tabs[0].textContent = '全部 (' + stats.total + ')';
-    tabs[1].textContent = '外部投诉 (' + stats.external + ')';
-    tabs[2].textContent = '内部投诉 (' + stats.internal + ')';
+// ============ Card 1: Policies ============
+function renderPolicies() {
+  var el = document.getElementById('policyList');
+  if (!policies.length) {
+    el.innerHTML = '<div class="list-empty"><span class="emoji">📜</span>暂无政策文件<br>管理员上传后在此展示</div>';
+    return;
   }
-}
-
-// ============================================================
-// Table
-// ============================================================
-function getStatus(record) {
-  if (!record.deadline) return 'normal';
-  if (record.handling_status && record.handling_status.indexOf('已办结') >= 0) return 'completed';
-  var today = new Date(); today.setHours(0,0,0,0);
-  var deadline = new Date(record.deadline + 'T00:00:00');
-  var diffDays = Math.ceil((deadline - today) / (1000*60*60*24));
-  if (diffDays < 0) return 'overdue';
-  if (diffDays <= 7) return 'warning';
-  return 'normal';
-}
-
-function getStatusText(status) {
-  switch (status) {
-    case 'overdue': return '已逾期';
-    case 'warning': return '即将到期';
-    case 'completed': return '已办结';
-    case 'normal': return '正常';
-    default: return '无期限';
+  policies.sort(function(a, b) { return (b.id || 0) - (a.id || 0); });
+  var html = '';
+  for (var i = 0; i < policies.length; i++) {
+    var p = policies[i];
+    var dlCount = (p.downloads || []).length;
+    html += '<div class="policy-item">' +
+      '<div class="policy-icon">📄</div>' +
+      '<div class="policy-info">' +
+        '<div class="policy-title" title="' + esc(p.title) + '">' + esc(p.title) + '</div>' +
+        '<div class="policy-meta">' + esc(p.fileName || '') + ' · ' + fmtSize(p.size) +
+          ' · <span class="dl-count">下载 ' + dlCount + ' 次</span>' +
+          ' · ' + esc((p.uploadedAt || '').substring(0, 10)) + '</div>' +
+      '</div>' +
+      '<div class="policy-actions">' +
+        '<button class="icon-btn" title="下载" onclick="downloadPolicy(' + p.id + ')">⬇</button>' +
+        (isSuperAdmin ? '<button class="icon-btn danger" title="删除" onclick="deletePolicy(' + p.id + ')">🗑</button>' : '') +
+      '</div>' +
+    '</div>';
   }
+  el.innerHTML = html;
 }
 
-function setTypeFilter(type, btn) {
-  typeFilter = type;
-  document.querySelectorAll('.type-tab').forEach(function(t) { t.classList.remove('active'); });
-  btn.classList.add('active');
-  renderTable();
+function openPolicyModal() {
+  document.getElementById('policyTitle').value = '';
+  document.getElementById('policyFile').value = '';
+  document.getElementById('policyFileList').innerHTML = '';
+  document.getElementById('policyDrop').classList.remove('has-files');
+  openModal('policyModal');
 }
 
-var selectedIds = new Set();
-
-function renderTable() {
-  var configAll = getActiveFieldConfig();
-  function fl(key, fallback) {
-    var f = configAll.find(function(x) { return x.key === key; });
-    return f ? f.label : fallback;
-  }
-  var configCustomFields = configAll.filter(function(f) { return f.section === 'custom' && f.visible !== false; });
-  document.getElementById('tableHead').innerHTML =
-    '<tr><th class="check-col"><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this.checked)" title="全选/取消全选"></th><th>序号</th><th>' + fl('complainant', '投诉方') + '</th><th>内/外</th><th>' + fl('complaint_matter', '投诉事项') + '</th>' +
-    '<th>' + fl('project_name', '项目名称') + '</th><th>' + fl('complaint_amount', '投诉金额') + '</th><th>' + fl('deadline', '到期日') + '</th><th>状态</th>' +
-    '<th>填写人</th><th>' + fl('handling_status', '办理情况') + '</th><th>' + fl('current_progress', '目前进展') + '</th><th>更新时间</th>' +
-    configCustomFields.map(function(f) { return '<th>' + f.label + '</th>'; }).join('') +
-    '</tr>';
-  
-  var searchText = (document.getElementById('searchInput') && document.getElementById('searchInput').value || '').toLowerCase();
-  var filterStatus = (document.getElementById('filterStatus') && document.getElementById('filterStatus').value) || 'all';
-  
-  var filtered = records.filter(function(r) {
-    if (typeFilter === '外部' && r.internal_external !== '外部') return false;
-    if (typeFilter === '内部' && r.internal_external !== '内部') return false;
-    var s = getStatus(r);
-    if (filterStatus === 'overdue' && s !== 'overdue') return false;
-    if (filterStatus === 'upcoming' && s !== 'warning') return false;
-    if (filterStatus === 'in-progress' && s !== 'normal' && s !== 'overdue' && s !== 'warning') return false;
-    if (filterStatus === 'completed' && s !== 'completed') return false;
-    if (searchText) {
-      var searchFields = [r.complaint_matter, r.project_name, r.complainant, r.complaint_amount, r.assignee_name || ''];
-      if (!searchFields.some(function(f) { return f.toLowerCase().indexOf(searchText) >= 0; })) return false;
-    }
-    return true;
-  });
-  
-  var tbody = document.getElementById('tableBody');
-  tbody.innerHTML = filtered.map(function(r, i) {
-    var status = getStatus(r);
-    var rowClass = status === 'overdue' ? 'overdue-row' : status === 'warning' ? 'warning-row' : status === 'completed' ? 'completed-row' : '';
-    var isSelected = selectedIds.has(r.id);
-    if (isSelected) rowClass += ' selected-row';
-    var ioe = r.internal_external || '-';
-    var ioeBadge = ioe === '外部' ? '<span style="color:#f59e0b;font-weight:600">外部</span>' :
-                   ioe === '内部' ? '<span style="color:#06b6d4;font-weight:600">内部</span>' :
-                   '<span style="color:var(--text-secondary)">-</span>';
-    return '<tr class="' + rowClass + '">' +
-      '<td class="check-col" onclick="event.stopPropagation();toggleSelect(' + r.id + ', this)">' +
-      '<input type="checkbox" ' + (isSelected ? 'checked' : '') + ' onclick="event.stopPropagation();toggleSelect(' + r.id + ', this.parentElement)"></td>' +
-      '<td onclick="openModal(' + r.id + ')">' + (i+1) + '</td>' +
-      '<td onclick="openModal(' + r.id + ')">' + (r.complainant || '-') + '</td>' +
-      '<td onclick="openModal(' + r.id + ')">' + ioeBadge + '</td>' +
-      '<td onclick="openModal(' + r.id + ')" title="' + (r.complaint_matter || '') + '">' + (r.complaint_matter || '-').substring(0, 20) + '</td>' +
-      '<td onclick="openModal(' + r.id + ')">' + (r.project_name || '-') + '</td>' +
-      '<td onclick="openModal(' + r.id + ')">' + (r.complaint_amount || '-') + '</td>' +
-      '<td onclick="openModal(' + r.id + ')">' + (r.deadline || '-') + '</td>' +
-      '<td onclick="openModal(' + r.id + ')"><span class="status-badge status-' + status + '">' + getStatusText(status) + '</span></td>' +
-      '<td onclick="openModal(' + r.id + ')">' + (r.assignee_name || '<span style="color:var(--warning)">未分配</span>') + '</td>' +
-      '<td onclick="openModal(' + r.id + ')">' + (r.handling_status || '-').substring(0,15) + '</td>' +
-      '<td onclick="openModal(' + r.id + ')">' + (r.current_progress || '-').substring(0,15) + '</td>' +
-      '<td onclick="openModal(' + r.id + ')">' + (r.updated_at ? r.updated_at.substring(5) : '-') + '</td>' +
-      (function() { var ccf = getActiveFieldConfig().filter(function(f) { return f.section === 'custom' && f.visible !== false; }); return ccf.map(function(f) { return '<td onclick="openModal(' + r.id + ')">' + (r[f.key] || '-') + '</td>'; }).join(''); })() +
-      '</tr>';
-  }).join('');
-  updateBatchUI();
+function handlePolicyFile(input) {
+  var list = document.getElementById('policyFileList');
+  if (!input.files || !input.files.length) { list.innerHTML = ''; return; }
+  var f = input.files[0];
+  if (f.size > 10 * 1024 * 1024) { alert('文件超过 10MB，请压缩后重试'); input.value = ''; list.innerHTML = ''; return; }
+  list.innerHTML = '<div class="file-tag"><span>📄</span><span class="fn">' + esc(f.name) + '</span><span class="fs">' + fmtSize(f.size) + '</span></div>';
+  document.getElementById('policyDrop').classList.add('has-files');
 }
 
-// ============================================================
-// Batch operations - 批量选择/删除/统计
-// ============================================================
-function toggleSelect(id, cellEl) {
-  if (selectedIds.has(id)) {
-    selectedIds.delete(id);
-  } else {
-    selectedIds.add(id);
-  }
-  // Update the checkbox in this row without re-rendering everything
-  var cb = cellEl.querySelector('input[type=checkbox]');
-  if (cb) cb.checked = selectedIds.has(id);
-  var row = cellEl.parentElement;
-  if (selectedIds.has(id)) {
-    row.classList.add('selected-row');
-  } else {
-    row.classList.remove('selected-row');
-  }
-  updateBatchUI();
-}
-
-function toggleSelectAll(checked) {
-  var searchText = (document.getElementById('searchInput') && document.getElementById('searchInput').value || '').toLowerCase();
-  var filterStatus = (document.getElementById('filterStatus') && document.getElementById('filterStatus').value) || 'all';
-
-  records.forEach(function(r) {
-    if (typeFilter === '外部' && r.internal_external !== '外部') return;
-    if (typeFilter === '内部' && r.internal_external !== '内部') return;
-    var s = getStatus(r);
-    if (filterStatus === 'overdue' && s !== 'overdue') return;
-    if (filterStatus === 'upcoming' && s !== 'warning') return;
-    if (filterStatus === 'in-progress' && s !== 'normal' && s !== 'overdue' && s !== 'warning') return;
-    if (filterStatus === 'completed' && s !== 'completed') return;
-    if (searchText) {
-      var sf = [r.complaint_matter, r.project_name, r.complainant, r.complaint_amount, r.assignee_name || ''];
-      if (!sf.some(function(f) { return f.toLowerCase().indexOf(searchText) >= 0; })) return;
-    }
-    if (checked) { selectedIds.add(r.id); } else { selectedIds.delete(r.id); }
-  });
-  renderTable();
-}
-
-function clearSelection() {
-  selectedIds.clear();
-  renderTable();
-}
-
-function updateBatchUI() {
-  var toolbar = document.getElementById('batchToolbar');
-  var count = selectedIds.size;
-  if (count > 0) {
-    toolbar.classList.add('active');
-    toolbar.querySelector('#batchCount').textContent = count;
-  } else {
-    toolbar.classList.remove('active');
-  }
-}
-
-async function batchDelete() {
-  var count = selectedIds.size;
-  if (count === 0) return;
-  if (!confirm('确定要删除选中的 ' + count + ' 条记录吗？\n\n此操作不可撤销！')) return;
-  if (!confirm('再次确认：删除 ' + count + ' 条记录？')) return;
-
+async function uploadPolicy() {
+  var title = document.getElementById('policyTitle').value.trim();
+  var input = document.getElementById('policyFile');
+  if (!title) { alert('请输入政策名称'); return; }
+  if (!input.files || !input.files.length) { alert('请选择政策文件'); return; }
+  var f = input.files[0];
   showLoading(true);
   try {
-    await rmw(function(store) {
-      store.records = store.records.filter(function(r) { return !selectedIds.has(r.id); });
-    });
-    selectedIds.clear();
-    await loadRecords();
-    alert('已成功删除 ' + count + ' 条记录');
-  } catch(e) {
-    alert('删除失败: ' + (e.message || '未知错误'));
-  } finally {
-    showLoading(false);
-  }
-}
-
-function batchStats() {
-  var selectedRecords = records.filter(function(r) { return selectedIds.has(r.id); });
-  if (selectedRecords.length === 0) return;
-
-  // Aggregations
-  var total = selectedRecords.length;
-  var extCount = selectedRecords.filter(function(r) { return r.internal_external === '外部'; }).length;
-  var intCount = selectedRecords.filter(function(r) { return r.internal_external === '内部'; }).length;
-  var completedCount = selectedRecords.filter(function(r) { return getStatus(r) === 'completed'; }).length;
-  var overdueCount = selectedRecords.filter(function(r) { return getStatus(r) === 'overdue'; }).length;
-  var inProgressCount = total - completedCount - overdueCount;
-  var hasAssignee = selectedRecords.filter(function(r) { return r.assignee_name && r.assignee_name.trim(); }).length;
-
-  // Amount stats
-  var amounts = selectedRecords.map(function(r) {
-    var v = parseFloat(String(r.complaint_amount || '').replace(/[^0-9.]/g, ''));
-    return isNaN(v) ? 0 : v;
-  }).filter(function(v) { return v > 0; });
-  var sumAmount = amounts.reduce(function(a,b) { return a+b; }, 0);
-  var avgAmount = amounts.length > 0 ? sumAmount / amounts.length : 0;
-  var maxAmount = amounts.length > 0 ? Math.max.apply(null, amounts) : 0;
-  var minAmount = amounts.length > 0 ? Math.min.apply(null, amounts) : 0;
-
-  // Assignee distribution
-  var assigneeDist = {};
-  selectedRecords.forEach(function(r) {
-    var name = r.assignee_name || '未分配';
-    assigneeDist[name] = (assigneeDist[name] || 0) + 1;
-  });
-
-  // Client type distribution
-  var clientDist = {};
-  selectedRecords.forEach(function(r) {
-    var ct = r.client_type || '未知';
-    clientDist[ct] = (clientDist[ct] || 0) + 1;
-  });
-
-  var fmt = function(n) { return n.toLocaleString('zh-CN', {minimumFractionDigits:2,maximumFractionDigits:2}); };
-
-  var html = '<div class="stats-grid">' +
-    '<div class="stats-item"><div class="stats-val">' + total + '</div><div class="stats-label">选中记录数</div></div>' +
-    '<div class="stats-item"><div class="stats-val">' + extCount + ' / ' + intCount + '</div><div class="stats-label">外部 / 内部</div></div>' +
-    '<div class="stats-item"><div class="stats-val">' + completedCount + '</div><div class="stats-label">已办结</div></div>' +
-    '<div class="stats-item"><div class="stats-val">' + overdueCount + '</div><div class="stats-label">已逾期</div></div>' +
-    '</div>';
-
-  html += '<div class="stats-grid">' +
-    '<div class="stats-item"><div class="stats-val">¥' + fmt(sumAmount) + '</div><div class="stats-label">投诉金额合计</div></div>' +
-    '<div class="stats-item"><div class="stats-val">¥' + fmt(avgAmount) + '</div><div class="stats-label">平均金额</div></div>' +
-    '<div class="stats-item"><div class="stats-val">¥' + fmt(maxAmount) + '</div><div class="stats-label">最高金额</div></div>' +
-    '<div class="stats-item"><div class="stats-val">¥' + fmt(minAmount) + '</div><div class="stats-label">最低金额</div></div>' +
-    '</div>';
-
-  html += '<div class="form-section"><h4>填写人分布</h4>';
-  Object.keys(assigneeDist).forEach(function(k) {
-    html += '<div style="display:flex;justify-content:space-between;padding:6px 12px;border:1px solid var(--border);border-radius:6px;margin-bottom:4px">' +
-      '<span>' + k + '</span><strong>' + assigneeDist[k] + ' 条</strong></div>';
-  });
-  html += '</div>';
-
-  html += '<div class="form-section"><h4>客户类型分布</h4>';
-  Object.keys(clientDist).sort(function(a,b) { return clientDist[b] - clientDist[a]; }).forEach(function(k) {
-    html += '<div style="display:flex;justify-content:space-between;padding:6px 12px;border:1px solid var(--border);border-radius:6px;margin-bottom:4px">' +
-      '<span>' + k + '</span><strong>' + clientDist[k] + ' 条</strong></div>';
-  });
-  html += '</div>';
-
-  document.getElementById('batchStatsTitle').textContent = '选中 ' + total + ' 条记录 — 统计分析';
-  document.getElementById('batchStatsBody').innerHTML = html;
-  document.getElementById('batchStatsOverlay').classList.add('active');
-}
-
-// ============================================================
-// Modal
-// ============================================================
-function openModal(id) {
-  editingRecordId = id || null;
-  if (id) {
-    var record = records.find(function(r) { return r.id === id; });
-    if (record) {
-      renderModal(record);
-    } else {
-      ghLoadData().then(function(result) {
-        var r = result.data.records.find(function(rec) { return rec.id === id; });
-        if (r) renderModal(r);
-        else alert('记录不存在');
-      });
-    }
-  } else {
-    renderModal({});
-  }
-}
-
-function closeModal() {
-  document.getElementById('modalOverlay').classList.remove('active');
-  editingRecordId = null;
-}
-
-// ============ 下拉选项定义 (来自Excel) ============
-var FIELD_OPTIONS = {
-  is_owner_designated:     ['是', '否'],
-  invoice_before_complaint:['是', '否'],
-  is_back_to_back:         ['是', '否'],
-  aged_over_3years:        ['是', '否'],
-  is_delayed:              ['是', '否'],
-  is_cooperative:          ['是', '否'],
-  pre_litigation_comm:     ['是', '否'],
-  is_completed:            ['是', '否'],
-  accountability_doc_submitted: ['是', '否'],
-  debt_type: [
-    '欠薪', '工程款', '服务费', '质保金', '租赁费',
-    '采购款', '农民工工资', '分包款', '其他'
-  ],
-  project_type: [
-    '工程施工', '通信网络维护服务', '增值服务', '设施管理服务',
-    '供应链服务', '系统集成', '其他', '工程设计', '软件开发',
-    '系统营维支撑', '贸易服务'
-  ],
-  project_prof_type: [
-    '工程施工', '通信网络维护服务', '增值服务', '设施管理服务',
-    '供应链服务', '系统集成', '其他', '工程设计', '软件开发',
-    '系统营维支撑', '贸易服务'
-  ],
-  client_type: [
-    '集客', '政府、事业单位', '运营商-电信', '运营商-移动',
-    '运营商-联通', '运营商-铁塔'
-  ],
-  forward_client_type: [
-    '集团客户-其他', '集团客户-党政军', '集团客户-事业单位',
-    '运营商-电信-主实协同', '运营商-电信-其他', '运营商-移动、联通、铁塔'
-  ],
-  complaint_reason: [
-    '业主端风险传导-拖延验收、审计',
-    '业主端风险传导-资金紧张、未回款',
-    '供应商管理-供应商退出市场、经营不善等集中投诉',
-    '供应商管理-未及时向下游付款，分包款、农民工工资纠纷',
-    '供应商管理-未按要求履约整改但要求付款',
-    '合同管理问题-上下游付款条件不匹配',
-    '合同管理问题-未签合同，先开工，时间长',
-    '投诉"搭便车"，虚假投诉（诉前已支付完毕）',
-    '项目交付问题-存在工作量认定纠纷',
-    '项目交付问题-存在质量问题',
-    '项目交付问题-过程管理粗放，项目资料缺失'
-  ],
-  handling_status: [
-    '办理中',
-    '已办结-已结清',
-    '已办结-签订还款协议、付款承诺函',
-    '已办结-不在保障支付条例内-无合同关系',
-    '已办结-不在保障支付条例内-未达合同付款条件-未验收、审计、质保期未满',
-    '已办结-不在保障支付条例内-转办前已结清',
-    '已办结-转办前已进入司法程序',
-    '延期-付款中',
-    '延期-推动前向回款',
-    '延期-核对工作量、协商中'
-  ],
-  complaint_type_yearend: [
-    '1.已支付完毕（无剩余款项）',
-    '2.未支付完毕（剩余款项为背靠背）',
-    '3.未支付完毕（剩余款项为质保金）',
-    '4.未支付完毕（剩余款项签署补充协议）',
-    '5.未支付完毕（剩余款项未达付款条件且不存在争议）',
-    '6.存在争议且未进入法律程序',
-    '7.已进入司法诉讼、纪检调查等程序',
-    '8.无需支付、不涉及支付'
-  ],
-  accountability: [
-    '清欠工作原因追责',
-    '项目管理及清欠原因追责'
-  ]
-};
-
-// ============ 字段配置系统 ============
-var DEFAULT_FIELD_CONFIG = [
-  { key: 'registration_no', label: '登记编号', type: 'text', section: 'basic', editableBy: 'admin', visible: true, isCustom: false },
-  { key: 'unit', label: '单位/省公司', type: 'text', section: 'basic', editableBy: 'admin', visible: true, isCustom: false },
-  { key: 'complainant', label: '投诉方', type: 'text', section: 'basic', editableBy: 'admin', visible: true, isCustom: false },
-  { key: 'channel', label: '投诉渠道', type: 'text', section: 'basic', editableBy: 'admin', visible: true, isCustom: false },
-  { key: 'internal_external', label: '内部/外部', type: 'select', options: ['内部','外部'], section: 'basic', editableBy: 'admin', visible: true, isCustom: false },
-  { key: 'complaint_date', label: '投诉日期', type: 'date', section: 'basic', editableBy: 'admin', visible: true, isCustom: false },
-  { key: 'deadline', label: '到期日', type: 'date', section: 'basic', editableBy: 'admin', visible: true, isCustom: false },
-  { key: 'project_name', label: '项目名称', type: 'text', section: 'basic', editableBy: 'admin', visible: true, isCustom: false },
-  { key: 'complaint_amount', label: '投诉金额', type: 'text', section: 'basic', editableBy: 'admin', visible: true, isCustom: false },
-  { key: 'complaint_matter', label: '投诉事项', type: 'text', section: 'basic', editableBy: 'admin', visible: true, isCustom: false },
-  { key: 'respondent', label: '被投诉方', type: 'text', section: 'basic', editableBy: 'admin', visible: true, isCustom: false },
-  { key: 'debt_type', label: '欠款类型', type: 'select', options: ['欠薪','工程款','服务费','质保金','租赁费','采购款','农民工工资','分包款','其他'], section: 'basic', editableBy: 'admin', visible: true, isCustom: false },
-  { key: 'contract_amount', label: '合同金额', type: 'text', section: 'basic', editableBy: 'admin', visible: true, isCustom: false },
-  { key: 'delay_deadline', label: '延期到期日', type: 'date', section: 'basic', editableBy: 'admin', visible: true, isCustom: false },
-  { key: 'final_close_date', label: '最终办结日期', type: 'date', section: 'basic', editableBy: 'admin', visible: true, isCustom: false },
-  { key: 'clue_check_attachments', label: '线索核查附件上传', type: 'file', section: 'basic', editableBy: 'admin', visible: true, isCustom: false },
-  { key: 'branch', label: '分公司', type: 'text', section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'project_manager', label: '项目负责人', type: 'text', section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'verification', label: '核实情况', type: 'textarea', section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'is_owner_designated', label: '是否甲方指定供应商', type: 'select', options: ['是','否'], section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'has_other_projects', label: '是否有其他合作项目', type: 'text', section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'invoice_before_complaint', label: '投诉前是否已收到发票入账', type: 'select', options: ['是','否'], section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'is_back_to_back', label: '是否属于背靠背项目', type: 'select', options: ['是','否'], section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'aged_over_3years', label: '是否三年以上长账龄', type: 'select', options: ['是','否'], section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'project_type', label: '项目专业类型', type: 'select', options: ['工程施工','通信网络维护服务','增值服务','设施管理服务','供应链服务','系统集成','其他','工程设计','软件开发','系统营维支撑','贸易服务'], section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'client_name', label: '客户名称（甲方）', type: 'text', section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'client_type', label: '客户（甲方）类型', type: 'select', options: ['集客','政府、事业单位','运营商-电信','运营商-移动','运营商-联通','运营商-铁塔'], section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'forward_client_type', label: '前向客户类型', type: 'select', options: ['集团客户-其他','集团客户-党政军','集团客户-事业单位','运营商-电信-主实协同','运营商-电信-其他','运营商-移动、联通、铁塔'], section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'project_prof_type', label: '项目专业类型(下拉)', type: 'select', options: ['工程施工','通信网络维护服务','增值服务','设施管理服务','供应链服务','系统集成','其他','工程设计','软件开发','系统营维支撑','贸易服务'], section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'complaint_reason', label: '投诉原因', type: 'select', options: ['业主端风险传导-拖延验收、审计','业主端风险传导-资金紧张、未回款','供应商管理-供应商退出市场、经营不善等集中投诉','供应商管理-未及时向下游付款，分包款、农民工工资纠纷','供应商管理-未按要求履约整改但要求付款','合同管理问题-上下游付款条件不匹配','合同管理问题-未签合同，先开工，时间长','投诉"搭便车"，虚假投诉（诉前已支付完毕）','项目交付问题-存在工作量认定纠纷','项目交付问题-存在质量问题','项目交付问题-过程管理粗放，项目资料缺失'], section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'current_progress', label: '目前进展 (按周更新)', type: 'textarea', section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'actual_owed', label: '实际欠款应付', type: 'text', section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'payment_plan', label: '付款计划', type: 'text', section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'is_delayed', label: '是否延期', type: 'select', options: ['是','否'], section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'handling_status', label: '办理情况', type: 'select', options: ['办理中','已办结-已结清','已办结-签订还款协议、付款承诺函','已办结-不在保障支付条例内-无合同关系','已办结-不在保障支付条例内-未达合同付款条件-未验收、审计、质保期未满','已办结-不在保障支付条例内-转办前已结清','已办结-转办前已进入司法程序','延期-付款中','延期-推动前向回款','延期-核对工作量、协商中'], section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'payment_amount_yearend', label: '截至1231投诉后支付金额(万元)', type: 'text', section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'complaint_type_yearend', label: '截至1231投诉事项类型', type: 'select', options: ['1.已支付完毕（无剩余款项）','2.未支付完毕（剩余款项为背靠背）','3.未支付完毕（剩余款项为质保金）','4.未支付完毕（剩余款项签署补充协议）','5.未支付完毕（剩余款项未达付款条件且不存在争议）','6.存在争议且未进入法律程序','7.已进入司法诉讼、纪检调查等程序','8.无需支付、不涉及支付'], section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'latest_progress_yearend', label: '截至1231最新进展 (300字内)', type: 'textarea', section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'accountability', label: '追责情况', type: 'select', options: ['清欠工作原因追责','项目管理及清欠原因追责'], section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'accountability_attachments', label: '追责附件上传', type: 'file', section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'accountability_detail', label: '追责情况说明', type: 'textarea', section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'accountability_method', label: '问责方式', type: 'text', section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'accountable_person', label: '问责项目经理/项目负责人', type: 'text', section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'verification_report', label: '核查报告', type: 'textarea', section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'is_cooperative', label: '是否为合作项目', type: 'select', options: ['是','否'], section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'pre_litigation_comm', label: '诉前是否有沟通', type: 'select', options: ['是','否'], section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'complainant_contact', label: '投诉人联系方式', type: 'text', section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'project_manager_contact', label: '项目经理联系方式', type: 'text', section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'branch_manager_contact', label: '分公司经理/联系方式', type: 'text', section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'accountability_doc_submitted', label: '是否已上报追责文件', type: 'select', options: ['是','否'], section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'accountability_count', label: '问责人数', type: 'text', section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'is_completed', label: '是否已经完结', type: 'select', options: ['是','否'], section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'resolution_method', label: '协商一致解决的方式', type: 'text', section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'unit_feedback', label: '涉事单位反馈', type: 'textarea', section: 'detail', editableBy: 'collab', visible: true, isCustom: false },
-  { key: 'remarks', label: '备注', type: 'textarea', section: 'detail', editableBy: 'collab', visible: true, isCustom: false }
-];
-
-// 获取当前生效的字段配置（合并 fieldConfig + 遗留 customFields）
-function getActiveFieldConfig() {
-  var config = (fieldConfig && fieldConfig.length > 0)
-    ? fieldConfig
-    : DEFAULT_FIELD_CONFIG.map(function(f) { return Object.assign({}, f); });
-  // 合并遗留的 customFields（如果它们还没在 fieldConfig 中）
-  for (var i = 0; i < customFields.length; i++) {
-    var cf = customFields[i];
-    var key = 'cf_' + cf.id;
-    if (!config.find(function(f) { return f.key === key; })) {
-      config.push({
-        key: key, label: cf.label, type: cf.type, options: cf.options || [],
-        section: 'custom', editableBy: 'collab', visible: true, isCustom: true, cfId: cf.id
-      });
-    }
-  }
-  return config;
-}
-
-// 初始化 store 中的 fieldConfig（如果不存在）
-function ensureFieldConfig(store) {
-  if (!store.settings) store.settings = { customFields: [], nextCfId: 1 };
-  if (!store.settings.fieldConfig) {
-    store.settings.fieldConfig = DEFAULT_FIELD_CONFIG.map(function(f) { return Object.assign({}, f); });
-    store.settings.fieldConfigUpdatedAt = now();
-    if (store.settings.customFields && store.settings.customFields.length > 0) {
-      for (var i = 0; i < store.settings.customFields.length; i++) {
-        var cf = store.settings.customFields[i];
-        store.settings.fieldConfig.push({
-          key: 'cf_' + cf.id, label: cf.label, type: cf.type, options: cf.options || [],
-          section: 'custom', editableBy: 'collab', visible: true, isCustom: true, cfId: cf.id
-        });
+    var b64 = await fileToBase64(f);
+    var safeName = safeFileName(f.name);
+    if (IS_DESKTOP) {
+      var res = await fetchTimed('/api/policies', {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ title: title, filename: safeName, base64: b64 })
+      }, 30000);
+      if (!res.ok) {
+        var err = {}; try { err = await res.json(); } catch(ee) {}
+        throw new Error(err.error || ('上传失败(HTTP ' + res.status + ')'));
       }
+    } else {
+      // Web mode: allocate id, push file to GitHub, then append metadata
+      var newId = null;
+      await rmw(function(store) {
+        ensurePortalCollections(store);
+        newId = store.nextPolicyId;
+        store.nextPolicyId = newId + 1;
+      });
+      var ghPath = 'attachments/policies/p' + newId + '/' + encodeURIComponent(safeName);
+      var putRes = await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + ghPath, {
+        method: 'PUT', headers: ghHeaders(),
+        body: JSON.stringify({ message: 'upload policy ' + safeName, content: b64, branch: GH.branch })
+      }, 30000);
+      if (!putRes.ok) {
+        var perr = {}; try { perr = await putRes.json(); } catch(ee) {}
+        throw new Error(perr.message || '文件上传失败');
+      }
+      await rmw(function(store) {
+        ensurePortalCollections(store);
+        store.policies.push({
+          id: newId, title: title, fileName: safeName,
+          path: 'attachments/policies/p' + newId + '/' + safeName,
+          size: Math.round((b64.length * 3) / 4),
+          uploadedBy: currentUser.username, uploadedByName: currentUser.display_name || currentUser.username,
+          uploadedAt: now(), updatedAt: now(), downloads: []
+        });
+      });
     }
-    return true; // was initialized
-  }
-  // Merge newly-added built-in fields (e.g. attachment fields) into existing config
-  var changed = false;
-  for (var di = 0; di < DEFAULT_FIELD_CONFIG.length; di++) {
-    var def = DEFAULT_FIELD_CONFIG[di];
-    if (def.isCustom) continue;
-    if (!store.settings.fieldConfig.find(function(f) { return f.key === def.key; })) {
-      store.settings.fieldConfig.push(Object.assign({}, def));
-      changed = true;
-    }
-  }
-  if (changed) {
-    store.settings.fieldConfigUpdatedAt = now();
-    if (window._storeRef) window._storeRef.settings = store.settings;
-  }
-  return false;
-}
-
-// 获取 auth headers（桌面端带 JWT token）
-function authHeaders() {
-  var headers = { 'Content-Type': 'application/json' };
-  var token = localStorage.getItem('qqToken');
-  if (token) headers['Authorization'] = 'Bearer ' + token;
-  return headers;
-}
-
-// ============ 数据驱动的表单渲染 ============
-
-function renderFieldInput(field, value, readonly) {
-  var ro = readonly ? 'readonly' : '';
-  var dis = readonly ? 'disabled' : '';
-  var id = 'edit_' + field.key;
-  var safeVal = (value || '').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  
-  if (field.type === 'textarea') {
-    var rawVal = (value || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    return '<textarea autocomplete="off" id="' + id + '" ' + (readonly ? 'readonly' : '') + ' rows="' + (field.rows || 3) + '">' + rawVal + '</textarea>';
-  } else if (field.type === 'select') {
-    var opts = (field.options || []).map(function(o) {
-      return '<option value="' + o + '" ' + (o === value ? 'selected' : '') + '>' + o + '</option>';
-    }).join('');
-    return '<select autocomplete="off" id="' + id + '" ' + dis + '><option value="">-- 请选择 --</option>' + opts + '</select>';
-  } else if (field.type === 'date') {
-    return '<input type="date" id="' + id + '" value="' + (value || '') + '" ' + ro + '>';
-  } else if (field.type === 'file') {
-    // 多文件附件：展示已上传列表 + 上传按钮
-    var atts = [];
-    try { atts = JSON.parse(value || '[]') || []; } catch(e) { atts = []; }
-    var listHtml = atts.map(function(a) {
-      var safeName = (a.name || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-      var safePath = (a.path || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-      var delBtn = readonly ? '' : '<button type="button" class="att-del" title="删除" onclick="deleteAttachment(\'' + field.key + '\',\'' + safePath + '\',this)">✕</button>';
-      var dlBtn = '<a class="att-dl" title="下载" href="javascript:void(0)" onclick="downloadSingleAttachment(\'' + safePath + '\')">↓</a>';
-      return '<div class="att-item"><span class="att-icon">📎</span><span class="att-name" title="' + safeName + '">' + safeName + '</span><span class="att-size">' + fmtSize(a.size) + '</span>' + dlBtn + delBtn + '</div>';
-    }).join('');
-    var uploadHtml = readonly ? '' :
-      '<div class="att-upload"><label class="att-upload-btn">📤 上传附件<input type="file" multiple style="display:none" onchange="uploadAttachments(\'' + field.key + '\', this.files, this)"></label><span class="att-hint">可多选，单个文件 ≤ 10MB</span></div>';
-    return '<div class="att-wrap" id="att_' + field.key + '">' + listHtml + uploadHtml + '</div>';
-  } else {
-    return '<input autocomplete="off" id="' + id + '" value="' + safeVal + '" ' + ro + '>';
-  }
-}
-
-// ============ 附件上传/下载/删除 ============
-function fmtSize(bytes) {
-  bytes = parseInt(bytes) || 0;
-  if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
-  if (bytes >= 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  return bytes + ' B';
-}
-function parseAtts(str) {
-  if (!str) return [];
-  try { var a = JSON.parse(str); return Array.isArray(a) ? a : []; } catch(e) { return []; }
-}
-function fileToBase64(file) {
-  return new Promise(function(resolve, reject) {
-    var reader = new FileReader();
-    reader.onload = function() { resolve(reader.result.split(',')[1] || ''); };
-    reader.onerror = function() { reject(new Error('读取文件失败')); };
-    reader.readAsDataURL(file);
-  });
-}
-function getRecordFolder(rec) {
-  return (rec.registration_no && rec.registration_no.trim()) ? rec.registration_no.trim() : ('记录' + rec.id);
-}
-function refreshAttList(fieldKey) {
-  var rec = records.find(function(r) { return r.id === editingRecordId; });
-  if (!rec) return;
-  var config = getActiveFieldConfig();
-  var field = config.find(function(f) { return f.key === fieldKey; });
-  var canEdit = isAdminLike || field.editableBy === 'collab';
-  var wrap = document.getElementById('att_' + fieldKey);
-  if (wrap) {
-    var value = rec[fieldKey] || '';
-    var atts = parseAtts(value);
-    var readonly = !canEdit;
-    var listHtml = atts.map(function(a) {
-      var safeName = (a.name || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-      var safePath = (a.path || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-      var delBtn = readonly ? '' : '<button type="button" class="att-del" title="删除" onclick="deleteAttachment(\'' + fieldKey + '\',\'' + safePath + '\',this)">✕</button>';
-      var dlBtn = '<a class="att-dl" title="下载" href="javascript:void(0)" onclick="downloadSingleAttachment(\'' + safePath + '\')">↓</a>';
-      return '<div class="att-item"><span class="att-icon">📎</span><span class="att-name" title="' + safeName + '">' + safeName + '</span><span class="att-size">' + fmtSize(a.size) + '</span>' + dlBtn + delBtn + '</div>';
-    }).join('');
-    var uploadHtml = readonly ? '' :
-      '<div class="att-upload"><label class="att-upload-btn">📤 上传附件<input type="file" multiple style="display:none" onchange="uploadAttachments(\'' + fieldKey + '\', this.files, this)"></label><span class="att-hint">可多选，单个文件 ≤ 10MB</span></div>';
-    wrap.innerHTML = listHtml + uploadHtml;
-  }
-}
-async function uploadAttachments(fieldKey, files, inputEl) {
-  var rec = records.find(function(r) { return r.id === editingRecordId; });
-  if (!rec || !rec.id) { alert('请先保存记录，再上传附件'); if (inputEl) inputEl.value = ''; return; }
-  if (!files || files.length === 0) return;
-  showLoading(true);
-  try {
-    var atts = parseAtts(rec[fieldKey]);
-    for (var i = 0; i < files.length; i++) {
-      var f = files[i];
-      if (f.size > 10 * 1024 * 1024) { alert('文件 "' + f.name + '" 超过 10MB，已跳过'); continue; }
-      var b64 = await fileToBase64(f);
-      var meta = await uploadFile(rec, fieldKey, f.name, b64);
-      if (meta) atts.push(meta);
-    }
-    rec[fieldKey] = JSON.stringify(atts);
-    refreshAttList(fieldKey);
+    closeModal('policyModal');
+    await loadPortal(true);
+    alert('政策上传成功');
   } catch(e) {
     alert('上传失败: ' + e.message);
   } finally {
     showLoading(false);
-    if (inputEl) inputEl.value = '';
   }
 }
-async function uploadFile(rec, fieldKey, filename, base64) {
-  var folder = getRecordFolder(rec);
-  var ghPath = 'attachments/' + folder + '/' + filename;
-  if (IS_DESKTOP) {
-    var res = await fetchTimed('/api/attachments', {
-      method: 'POST', headers: authHeaders(),
-      body: JSON.stringify({ record_id: rec.id, field_key: fieldKey, path: ghPath, filename: filename, base64: base64 })
-    }, 30000);
-    if (!res.ok) {
-      var err = {}; try { err = await res.json(); } catch(e) {}
-      throw new Error(err.error || ('上传失败(HTTP ' + res.status + ')'));
-    }
-    var meta = await res.json();
-    return meta;
-  } else {
-    // Web mode: GitHub Contents API
-    var res = await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + encodeURIComponent(ghPath), {
-      method: 'PUT', headers: ghHeaders(),
-      body: JSON.stringify({ message: 'upload ' + filename, content: base64, branch: GH.branch })
-    }, 30000);
-    if (!res.ok) {
-      var err = {}; try { err = await res.json(); } catch(e) {}
-      throw new Error(err.message || ('上传失败(HTTP ' + res.status + ')'));
-    }
-    // 更新记录字段（GitHub 上）
-    var meta = { name: filename, path: ghPath, size: Math.round((base64.length * 3) / 4), uploaded_at: now() };
-    await rmw(function(store) {
-      var r = store.records.find(function(x) { return x.id === rec.id; });
-      if (!r) return;
-      var arr = parseAtts(r[fieldKey]);
-      arr.push(meta);
-      r[fieldKey] = JSON.stringify(arr);
-      r.updated_at = now();
-    });
-    return meta;
-  }
-}
-async function deleteAttachment(fieldKey, path, btn) {
-  if (!confirm('确定删除该附件？')) return;
+
+async function downloadPolicy(id) {
+  var p = policies.find(function(x) { return x.id === id; });
+  if (!p) return;
   showLoading(true);
   try {
     if (IS_DESKTOP) {
-      var res = await fetchTimed('/api/attachments', {
-        method: 'DELETE', headers: authHeaders(),
-        body: JSON.stringify({ record_id: editingRecordId, field_key: fieldKey, path: path })
-      }, 15000);
+      // Desktop: server records the download & streams the file
+      var res = await fetchTimed('/api/policies/download?id=' + id, { headers: authHeaders() }, 30000);
       if (!res.ok) {
-        var err = {}; try { err = await res.json(); } catch(e) {}
+        var err = {}; try { err = await res.json(); } catch(ee) {}
+        throw new Error(err.error || ('下载失败(HTTP ' + res.status + ')'));
+      }
+      var blob = await res.blob();
+      saveBlob(blob, p.fileName);
+    } else {
+      // Web: record download event first, then pull file from GitHub
+      await rmw(function(store) {
+        ensurePortalCollections(store);
+        var pp = store.policies.find(function(x) { return x.id === id; });
+        if (!pp) return;
+        pp.downloads = pp.downloads || [];
+        pp.downloads.push({
+          id: store.nextDownloadId,
+          username: currentUser.username,
+          displayName: currentUser.display_name || currentUser.username,
+          downloadedAt: now()
+        });
+        store.nextDownloadId = (store.nextDownloadId || 1) + 1;
+        pp.updatedAt = now();
+      });
+      var blob2 = await fetchFileBlob(p.path);
+      saveBlob(blob2, p.fileName);
+    }
+    await loadPortal(true);
+  } catch(e) {
+    alert('下载失败: ' + e.message);
+  } finally {
+    showLoading(false);
+  }
+}
+
+async function deletePolicy(id) {
+  var p = policies.find(function(x) { return x.id === id; });
+  if (!p) return;
+  if (!confirm('确定删除政策「' + p.title + '」？删除后下载统计一并清除。')) return;
+  showLoading(true);
+  try {
+    if (IS_DESKTOP) {
+      var res = await fetchTimed('/api/policies/' + id, { method: 'DELETE', headers: authHeaders() }, 15000);
+      if (!res.ok) {
+        var err = {}; try { err = await res.json(); } catch(ee) {}
         throw new Error(err.error || ('删除失败(HTTP ' + res.status + ')'));
       }
     } else {
-      // Web: delete file from GitHub + update record
-      var ghPath = path;
-      var sha = await getGitHubFileSha(ghPath);
+      var sha = await getGitHubFileSha(p.path);
       if (sha) {
-        await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + encodeURIComponent(ghPath), {
+        await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + encodeURIComponent(p.path), {
           method: 'DELETE', headers: ghHeaders(),
-          body: JSON.stringify({ message: 'delete ' + ghPath, sha: sha, branch: GH.branch })
+          body: JSON.stringify({ message: 'delete policy ' + p.path, sha: sha, branch: GH.branch })
         }, 15000);
       }
       await rmw(function(store) {
-        var r = store.records.find(function(x) { return x.id === editingRecordId; });
-        if (!r) return;
-        var arr = parseAtts(r[fieldKey]).filter(function(a) { return a.path !== path; });
-        r[fieldKey] = JSON.stringify(arr);
-        r.updated_at = now();
+        ensurePortalCollections(store);
+        store.policies = (store.policies || []).filter(function(x) { return x.id !== id; });
       });
     }
-    var rec = records.find(function(r) { return r.id === editingRecordId; });
-    if (rec) {
-      rec[fieldKey] = JSON.stringify(parseAtts(rec[fieldKey]).filter(function(a) { return a.path !== path; }));
-      refreshAttList(fieldKey);
-    }
+    await loadPortal(true);
   } catch(e) {
     alert('删除失败: ' + e.message);
   } finally {
     showLoading(false);
   }
 }
+
+// ============ Card 2: Trainings ============
+function renderTrainings() {
+  var el = document.getElementById('trainingList');
+  if (!trainings.length) {
+    el.innerHTML = '<div class="list-empty"><span class="emoji">📢</span>暂无宣贯资料<br>管理员上传后在此展示</div>';
+    return;
+  }
+  trainings.sort(function(a, b) { return (b.id || 0) - (a.id || 0); });
+  var html = '';
+  for (var i = 0; i < trainings.length; i++) {
+    var t = trainings[i];
+    var fileCount = (t.files || []).length;
+    html += '<div class="training-item" id="trItem_' + t.id + '">' +
+      '<div class="training-head" onclick="toggleTraining(' + t.id + ')">' +
+        '<div class="training-icon">📢</div>' +
+        '<div class="training-info">' +
+          '<div class="training-name" title="' + esc(t.meetingName) + '">' + esc(t.meetingName) + '</div>' +
+          '<div class="training-meta">🕐 ' + esc(t.meetingTime || '时间待定') + ' · 📎 ' + fileCount + ' 个文件 · ' + esc((t.uploadedAt || '').substring(0, 10)) + ' 上传</div>' +
+        '</div>' +
+        (isSuperAdmin ? '<button class="icon-btn danger" title="删除该宣贯及全部文件" onclick="event.stopPropagation();deleteTraining(' + t.id + ')">🗑</button>' : '') +
+        '<span class="training-arrow">▶</span>' +
+      '</div>' +
+      '<div class="training-files" id="trFiles_' + t.id + '">' +
+        '<div style="padding:8px 6px 4px;color:var(--text-secondary);font-size:11px">点击文件下载 / 查看</div>' +
+        (fileCount ? renderTrainingFiles(t) : '<div style="padding:8px;font-size:12px;color:var(--text-secondary)">暂无文件</div>') +
+        (isSuperAdmin ? '<div style="padding:10px 4px 2px"><label class="btn btn-outline btn-sm" style="cursor:pointer">＋ 添加文件<input type="file" multiple style="display:none" onchange="addTrainingFiles(' + t.id + ', this.files, this)"></label><span style="font-size:11px;color:var(--text-secondary);margin-left:8px">单个 ≤ 10MB</span></div>' : '') +
+      '</div>' +
+    '</div>';
+  }
+  el.innerHTML = html;
+}
+
+function renderTrainingFiles(t) {
+  var html = '';
+  var files = t.files || [];
+  for (var i = 0; i < files.length; i++) {
+    var f = files[i];
+    var isImg = /\.(png|jpe?g|gif|webp|bmp)$/i.test(f.name);
+    if (isImg) {
+      html += '<div class="tfile-item"><img class="tfile-img" src="" data-path="' + esc(f.path) + '" data-name="' + esc(f.name) + '" onclick="previewImage(this)" alt="' + esc(f.name) + '"><span class="tfile-name">' + esc(f.name) + '</span><span class="tfile-size">' + fmtSize(f.size) + '</span>' +
+        '<button class="icon-btn" title="下载" onclick="downloadTrainingFile(\'' + escJs(f.path) + '\',\'' + escJs(f.name) + '\')">⬇</button>' +
+        (isSuperAdmin ? '<button class="icon-btn danger" title="删除" onclick="deleteTrainingFile(' + t.id + ',\'' + escJs(f.path) + '\')">🗑</button>' : '') +
+        '</div>';
+    } else {
+      var icon = /\.(docx?|wps)$/i.test(f.name) ? '📝' : (/\.(xlsx?|csv)$/i.test(f.name) ? '📊' : (/\.(pptx?|dps)$/i.test(f.name) ? '📽' : (/\.(pdf)$/i.test(f.name) ? '📕' : '📎')));
+      html += '<div class="tfile-item"><span style="font-size:15px">' + icon + '</span><span class="tfile-name" title="' + esc(f.name) + '">' + esc(f.name) + '</span><span class="tfile-size">' + fmtSize(f.size) + '</span>' +
+        '<button class="icon-btn" title="下载" onclick="downloadTrainingFile(\'' + escJs(f.path) + '\',\'' + escJs(f.name) + '\')">⬇</button>' +
+        (isSuperAdmin ? '<button class="icon-btn danger" title="删除" onclick="deleteTrainingFile(' + t.id + ',\'' + escJs(f.path) + '\')">🗑</button>' : '') +
+        '</div>';
+    }
+  }
+  return html;
+}
+
+function toggleTraining(id) {
+  var item = document.getElementById('trItem_' + id);
+  if (!item) return;
+  item.classList.toggle('open');
+  // Lazy-load image previews for open trainings
+  if (item.classList.contains('open')) {
+    var imgs = item.querySelectorAll('img.tfile-img[data-path]');
+    for (var i = 0; i < imgs.length; i++) {
+      (function(img) {
+        fetchFileBlob(img.getAttribute('data-path')).then(function(blob) {
+          img.src = URL.createObjectURL(blob);
+        }).catch(function() { img.style.display = 'none'; });
+      })(imgs[i]);
+    }
+  }
+}
+
+function openTrainingModal() {
+  document.getElementById('trainingName').value = '';
+  document.getElementById('trainingTime').value = '';
+  document.getElementById('trainingFiles').value = '';
+  document.getElementById('trainingFileList').innerHTML = '';
+  document.getElementById('trainingDrop').classList.remove('has-files');
+  openModal('trainingModal');
+}
+
+function handleTrainingFiles(input) {
+  var list = document.getElementById('trainingFileList');
+  if (!input.files || !input.files.length) { list.innerHTML = ''; return; }
+  var html = '';
+  for (var i = 0; i < input.files.length; i++) {
+    var f = input.files[i];
+    if (f.size > 10 * 1024 * 1024) { alert('文件「' + f.name + '」超过 10MB，已跳过'); continue; }
+    html += '<div class="file-tag"><span>📎</span><span class="fn">' + esc(f.name) + '</span><span class="fs">' + fmtSize(f.size) + '</span></div>';
+  }
+  list.innerHTML = html || '<div style="font-size:12px;color:var(--warning)">所选文件均超过 10MB，请重新选择</div>';
+  document.getElementById('trainingDrop').classList.toggle('has-files', html !== '');
+}
+
+async function uploadTraining() {
+  var name = document.getElementById('trainingName').value.trim();
+  var time = document.getElementById('trainingTime').value;
+  var input = document.getElementById('trainingFiles');
+  if (!name) { alert('请输入会议名称'); return; }
+  if (!input.files || !input.files.length) { alert('请至少选择一个文件'); return; }
+  showLoading(true);
+  try {
+    var trainingId = null;
+    if (IS_DESKTOP) {
+      var res = await fetchTimed('/api/trainings', {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ meetingName: name, meetingTime: time })
+      }, 15000);
+      if (!res.ok) {
+        var err = {}; try { err = await res.json(); } catch(ee) {}
+        throw new Error(err.error || ('创建失败(HTTP ' + res.status + ')'));
+      }
+      var created = await res.json();
+      trainingId = created.id;
+      // Upload files one by one
+      for (var i = 0; i < input.files.length; i++) {
+        var f = input.files[i];
+        if (f.size > 10 * 1024 * 1024) continue;
+        var b64 = await fileToBase64(f);
+        var fres = await fetchTimed('/api/trainings/' + trainingId + '/files', {
+          method: 'POST', headers: authHeaders(),
+          body: JSON.stringify({ filename: safeFileName(f.name), base64: b64 })
+        }, 30000);
+        if (!fres.ok) {
+          var ferr = {}; try { ferr = await fres.json(); } catch(ee) {}
+          throw new Error(ferr.error || ('文件上传失败(HTTP ' + fres.status + ')'));
+        }
+      }
+    } else {
+      // Web mode
+      await rmw(function(store) {
+        ensurePortalCollections(store);
+        trainingId = store.nextTrainingId;
+        store.nextTrainingId = trainingId + 1;
+        store.trainings.push({
+          id: trainingId, meetingName: name, meetingTime: time, files: [],
+          uploadedBy: currentUser.username, uploadedByName: currentUser.display_name || currentUser.username,
+          uploadedAt: now(), updatedAt: now()
+        });
+      });
+      for (var j = 0; j < input.files.length; j++) {
+        var fj = input.files[j];
+        if (fj.size > 10 * 1024 * 1024) continue;
+        var bj = await fileToBase64(fj);
+        var safeN = safeFileName(fj.name);
+        var tPath = 'attachments/trainings/t' + trainingId + '/' + encodeURIComponent(safeN);
+        var putRes = await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + tPath, {
+          method: 'PUT', headers: ghHeaders(),
+          body: JSON.stringify({ message: 'upload training file ' + safeN, content: bj, branch: GH.branch })
+        }, 30000);
+        if (!putRes.ok) {
+          var perr = {}; try { perr = await putRes.json(); } catch(ee) {}
+          throw new Error(perr.message || '文件上传失败');
+        }
+        await rmw(function(store) {
+          ensurePortalCollections(store);
+          var tr = store.trainings.find(function(x) { return x.id === trainingId; });
+          if (!tr) return;
+          tr.files = tr.files || [];
+          tr.files.push({
+            name: safeN, path: 'attachments/trainings/t' + trainingId + '/' + safeN,
+            size: Math.round((bj.length * 3) / 4), uploadedAt: now()
+          });
+          tr.updatedAt = now();
+        });
+      }
+    }
+    closeModal('trainingModal');
+    await loadPortal(true);
+    alert('宣贯资料上传成功');
+  } catch(e) {
+    alert('上传失败: ' + e.message);
+  } finally {
+    showLoading(false);
+  }
+}
+
+async function addTrainingFiles(id, files, inputEl) {
+  if (!files || !files.length) return;
+  showLoading(true);
+  try {
+    if (IS_DESKTOP) {
+      for (var i = 0; i < files.length; i++) {
+        var f = files[i];
+        if (f.size > 10 * 1024 * 1024) { alert('「' + f.name + '」超过 10MB，已跳过'); continue; }
+        var b64 = await fileToBase64(f);
+        var res = await fetchTimed('/api/trainings/' + id + '/files', {
+          method: 'POST', headers: authHeaders(),
+          body: JSON.stringify({ filename: safeFileName(f.name), base64: b64 })
+        }, 30000);
+        if (!res.ok) {
+          var err = {}; try { err = await res.json(); } catch(ee) {}
+          throw new Error(err.error || ('上传失败(HTTP ' + res.status + ')'));
+        }
+      }
+    } else {
+      for (var j = 0; j < files.length; j++) {
+        var fj = files[j];
+        if (fj.size > 10 * 1024 * 1024) { alert('「' + fj.name + '」超过 10MB，已跳过'); continue; }
+        var bj = await fileToBase64(fj);
+        var safeN = safeFileName(fj.name);
+        var tPath = 'attachments/trainings/t' + id + '/' + encodeURIComponent(safeN);
+        var putRes = await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + tPath, {
+          method: 'PUT', headers: ghHeaders(),
+          body: JSON.stringify({ message: 'upload training file ' + safeN, content: bj, branch: GH.branch })
+        }, 30000);
+        if (!putRes.ok) {
+          var perr = {}; try { perr = await putRes.json(); } catch(ee) {}
+          throw new Error(perr.message || '文件上传失败');
+        }
+        await rmw(function(store) {
+          ensurePortalCollections(store);
+          var tr = store.trainings.find(function(x) { return x.id === id; });
+          if (!tr) return;
+          tr.files = tr.files || [];
+          tr.files.push({
+            name: safeN, path: 'attachments/trainings/t' + id + '/' + safeN,
+            size: Math.round((bj.length * 3) / 4), uploadedAt: now()
+          });
+          tr.updatedAt = now();
+        });
+      }
+    }
+    await loadPortal(true);
+  } catch(e) {
+    alert('添加文件失败: ' + e.message);
+  } finally {
+    showLoading(false);
+    if (inputEl) inputEl.value = '';
+  }
+}
+
+async function deleteTrainingFile(id, path) {
+  if (!confirm('确定删除该文件？')) return;
+  showLoading(true);
+  try {
+    if (IS_DESKTOP) {
+      var res = await fetchTimed('/api/trainings/' + id + '/files', {
+        method: 'DELETE', headers: authHeaders(), body: JSON.stringify({ path: path })
+      }, 15000);
+      if (!res.ok) {
+        var err = {}; try { err = await res.json(); } catch(ee) {}
+        throw new Error(err.error || ('删除失败(HTTP ' + res.status + ')'));
+      }
+    } else {
+      var sha = await getGitHubFileSha(path);
+      if (sha) {
+        await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + encodeURIComponent(path), {
+          method: 'DELETE', headers: ghHeaders(),
+          body: JSON.stringify({ message: 'delete ' + path, sha: sha, branch: GH.branch })
+        }, 15000);
+      }
+      await rmw(function(store) {
+        ensurePortalCollections(store);
+        var tr = store.trainings.find(function(x) { return x.id === id; });
+        if (!tr) return;
+        tr.files = (tr.files || []).filter(function(x) { return x.path !== path; });
+        tr.updatedAt = now();
+      });
+    }
+    await loadPortal(true);
+  } catch(e) {
+    alert('删除失败: ' + e.message);
+  } finally {
+    showLoading(false);
+  }
+}
+
+async function deleteTraining(id) {
+  var t = trainings.find(function(x) { return x.id === id; });
+  if (!t) return;
+  if (!confirm('确定删除宣贯资料「' + t.meetingName + '」及其全部文件？')) return;
+  showLoading(true);
+  try {
+    if (IS_DESKTOP) {
+      var res = await fetchTimed('/api/trainings/' + id, { method: 'DELETE', headers: authHeaders() }, 20000);
+      if (!res.ok) {
+        var err = {}; try { err = await res.json(); } catch(ee) {}
+        throw new Error(err.error || ('删除失败(HTTP ' + res.status + ')'));
+      }
+    } else {
+      var tr = trainings.find(function(x) { return x.id === id; });
+      for (var i = 0; i < (tr ? tr.files || [] : []).length; i++) {
+        var fpath = tr.files[i].path;
+        var sha = await getGitHubFileSha(fpath);
+        if (sha) {
+          await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + encodeURIComponent(fpath), {
+            method: 'DELETE', headers: ghHeaders(),
+            body: JSON.stringify({ message: 'delete ' + fpath, sha: sha, branch: GH.branch })
+          }, 15000);
+        }
+      }
+      await rmw(function(store) {
+        ensurePortalCollections(store);
+        store.trainings = (store.trainings || []).filter(function(x) { return x.id !== id; });
+      });
+    }
+    await loadPortal(true);
+  } catch(e) {
+    alert('删除失败: ' + e.message);
+  } finally {
+    showLoading(false);
+  }
+}
+
+async function downloadTrainingFile(path, name) {
+  showLoading(true);
+  try {
+    var blob = await fetchFileBlob(path);
+    saveBlob(blob, name || decodeURIComponent(path.split('/').pop() || '文件'));
+  } catch(e) {
+    alert('下载失败: ' + e.message);
+  } finally {
+    showLoading(false);
+  }
+}
+
+function previewImage(imgEl) {
+  document.getElementById('imgPreview').src = imgEl.src;
+  openModal('imgPreviewModal');
+}
+
+// ============ Generic file fetch (dual-mode) ============
+async function fetchFileBlob(path) {
+  if (IS_DESKTOP) {
+    var res = await fetchTimed('/api/attachments/download?path=' + encodeURIComponent(path), { headers: authHeaders() }, 20000);
+    if (!res.ok) {
+      var err = {}; try { err = await res.json(); } catch(ee) {}
+      throw new Error(err.error || ('下载失败(HTTP ' + res.status + ')'));
+    }
+    return await res.blob();
+  }
+  var res = await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + encodeURIComponent(path) + '?ref=' + GH.branch, { headers: ghHeaders() }, 25000);
+  if (!res.ok) throw new Error('下载失败(HTTP ' + res.status + ')');
+  var j = await res.json();
+  var bin = atob((j.content || '').replace(/\n/g, ''));
+  var bytes = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes]);
+}
+
 async function getGitHubFileSha(ghPath) {
   try {
     var res = await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + encodeURIComponent(ghPath) + '?ref=' + GH.branch, { headers: ghHeaders() }, 15000);
@@ -1665,976 +1299,163 @@ async function getGitHubFileSha(ghPath) {
     return j.sha || null;
   } catch(e) { return null; }
 }
-async function fetchAttachmentBlob(path) {
-  if (IS_DESKTOP) {
-    var res = await fetchTimed('/api/attachments/download?path=' + encodeURIComponent(path), { headers: authHeaders() }, 20000);
-    if (!res.ok) throw new Error('附件下载失败(HTTP ' + res.status + ')');
-    return await res.blob();
-  } else {
-    var res = await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + encodeURIComponent(path) + '?ref=' + GH.branch, { headers: ghHeaders() }, 20000);
-    if (!res.ok) throw new Error('附件下载失败(HTTP ' + res.status + ')');
-    var j = await res.json();
-    var bin = atob((j.content || '').replace(/\n/g, ''));
-    var bytes = new Uint8Array(bin.length);
-    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return new Blob([bytes]);
-  }
-}
-async function downloadSingleAttachment(path) {
-  try {
-    var blob = await fetchAttachmentBlob(path);
-    var name = decodeURIComponent(path.split('/').pop() || '附件');
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url; a.download = name; a.click();
-    setTimeout(function() { URL.revokeObjectURL(url); }, 3000);
-  } catch(e) {
-    alert('下载失败: ' + e.message);
-  }
+
+function saveBlob(blob, name) {
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = name || '文件';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function() { document.body.removeChild(a); URL.revokeObjectURL(url); }, 3000);
 }
 
-function renderSectionFields(fields, record, canEdit, isAdmin) {
-  var html = '';
-  var i = 0;
-  while (i < fields.length) {
-    var field = fields[i];
-    var fieldEditable = canEdit && (isAdmin || field.editableBy === 'collab');
-    var val = record[field.key] || '';
-    var labelClass = field.editableBy === 'collab' ? ' class="blue-field"' : '';
-    
-    if (field.type === 'textarea' || field.type === 'file') {
-      html += '<div class="form-row">';
-      html += '<div class="form-group"><label' + labelClass + '>' + field.label + '</label>';
-      html += renderFieldInput(field, val, !fieldEditable);
-      html += '</div>';
-      i++;
-      if (i < fields.length && fields[i].type !== 'textarea' && fields[i].type !== 'file') {
-        var f2 = fields[i];
-        var fe2 = canEdit && (isAdmin || f2.editableBy === 'collab');
-        var v2 = record[f2.key] || '';
-        var lc2 = f2.editableBy === 'collab' ? ' class="blue-field"' : '';
-        html += '<div class="form-group"><label' + lc2 + '>' + f2.label + '</label>';
-        html += renderFieldInput(f2, v2, !fe2);
-        html += '</div>';
-        i++;
-      }
-      html += '</div>';
-    } else {
-      html += '<div class="form-row">';
-      html += '<div class="form-group"><label' + labelClass + '>' + field.label + '</label>';
-      html += renderFieldInput(field, val, !fieldEditable);
-      html += '</div>';
-      i++;
-      if (i < fields.length && fields[i].type !== 'textarea' && fields[i].type !== 'file') {
-        var f2b = fields[i];
-        var fe2b = canEdit && (isAdmin || f2b.editableBy === 'collab');
-        var v2b = record[f2b.key] || '';
-        var lc2b = f2b.editableBy === 'collab' ? ' class="blue-field"' : '';
-        html += '<div class="form-group"><label' + lc2b + '>' + f2b.label + '</label>';
-        html += renderFieldInput(f2b, v2b, !fe2b);
-        html += '</div>';
-        i++;
-      }
-      html += '</div>';
-    }
-  }
-  return html;
-}
-
-function renderModal(record) {
-  var isNew = !record.id;
-  var isAssigned = !isAdminLike && record.assignee_id === currentUser.id;
-  var canEdit = isAdminLike || isAssigned;
-  
-  document.getElementById('modalTitle').textContent = isNew ? '新增投诉记录' : ('记录 #' + record.id);
-  document.getElementById('btnSave').style.display = canEdit ? '' : 'none';
-  document.getElementById('deleteArea').style.display = (isSuperAdmin && !isNew) ? '' : 'none';
-  
-  var config = getActiveFieldConfig();
-  var html = '';
-  
-  // Assignee section — only super admin can assign
-  if (isSuperAdmin) {
-    var collabOptions = users.filter(function(u) { return u.role !== 'admin' && u.role !== 'sub_admin'; })
-      .map(function(u) { return '<option value="' + u.id + '" ' + (u.id === record.assignee_id ? 'selected' : '') + '>' + u.display_name + ' (@' + u.username + ')</option>'; })
-      .join('');
-    html += '<div class="form-section"><h4>分配信息</h4><div class="form-row"><div class="form-group"><label>指定填写人</label><select autocomplete="off" id="edit_assignee_id"><option value="">-- 未分配 --</option>' + collabOptions + '</select></div></div></div>';
-  } else if (isAssigned) {
-    html += '<div class="form-section"><h4 style="color:var(--info)">您被分配填写此记录，请填写蓝色字段</h4></div>';
-  }
-  
-  // Render sections dynamically
-  var sections = [
-    { id: 'basic', title: '投诉基本信息', color: 'var(--primary)' },
-    { id: 'detail', title: '核实与办理信息', color: 'var(--info)' },
-    { id: 'custom', title: '自定义字段', color: '#a78bfa' }
-  ];
-  
-  for (var s = 0; s < sections.length; s++) {
-    var section = sections[s];
-    var sectionFields = config.filter(function(f) {
-      return f.visible !== false && f.section === section.id;
-    });
-    if (sectionFields.length === 0) continue;
-    
-    html += '<div class="form-section"><h4 style="color:' + section.color + '">' + section.title + '</h4>';
-    html += renderSectionFields(sectionFields, record, canEdit, isAdminLike);
-    html += '</div>';
-  }
-  
-  document.getElementById('modalBody').innerHTML = html;
-  document.getElementById('modalOverlay').classList.add('active');
-}
-
-// ============================================================
-// Save Record — 桌面端走REST API（秒存），网页端走rmw+乐观更新
-// ============================================================
-async function saveRecord() {
-  var config = getActiveFieldConfig();
-  
-  // 收集表单数据（根据 fieldConfig 动态收集）
-  var formData = {};
-  for (var i = 0; i < config.length; i++) {
-    var field = config[i];
-    if (field.visible === false) continue;
-    var el = document.getElementById('edit_' + field.key);
-    if (el) {
-      // 协作人只能编辑 editableBy='collab' 的字段；admin/sub_admin 可编辑全部
-      var canEditField = isAdminLike || field.editableBy === 'collab';
-      if (canEditField) {
-        formData[field.key] = el.value || '';
+// ============ Card 3: Record progress ============
+function renderRecordStats() {
+  var el = document.getElementById('recordStats');
+  var recs = isAdminLike ? records : records.filter(function(r) { return r.assignee_id === currentUser.id; });
+  var total = recs.length;
+  var done = 0, doing = 0, delayed = 0, overdue = 0, dueSoon = 0;
+  var today = new Date(); today.setHours(0, 0, 0, 0);
+  for (var i = 0; i < recs.length; i++) {
+    var r = recs[i];
+    var hs = r.handling_status || '';
+    var completed = hs.indexOf('已办结') === 0 || r.is_completed === '是';
+    var isDelayed = r.is_delayed === '是' || hs.indexOf('延期') === 0;
+    if (completed) { done++; continue; }
+    if (isDelayed) delayed++;
+    doing++;
+    // deadline
+    var dl = r.deadline || r.final_close_date;
+    if (dl) {
+      var d = new Date(dl);
+      if (!isNaN(d.getTime())) {
+        d.setHours(0, 0, 0, 0);
+        var diff = Math.round((d - today) / 86400000);
+        if (diff < 0) overdue++;
+        else if (diff <= 7) dueSoon++;
       }
     }
   }
-  
-  var assigneeEl = document.getElementById('edit_assignee_id');
-  if (assigneeEl) formData.assignee_id = assigneeEl.value ? parseInt(assigneeEl.value) : null;
-  
-  var btnSave = document.getElementById('btnSave');
-  btnSave.textContent = '保存中...';
-  btnSave.disabled = true;
-  
-  // ============ 桌面端：REST API 秒存 ============
-  if (IS_DESKTOP) {
-    try {
-      var headers = authHeaders();
-      var editingId = editingRecordId;
-      
-      if (editingId) {
-        var res = await fetchTimed('/api/records/' + editingId, {
-          method: 'PUT', headers: headers, body: JSON.stringify(formData)
-        }, 10000);
-        if (!res.ok) {
-          var err = {};
-          try { err = await res.json(); } catch(e) {}
-          throw new Error(err.error || '保存失败(HTTP ' + res.status + ')');
-        }
-        var savedRecord = await res.json();
-        
-        // 乐观更新内存
-        var rec = records.find(function(r) { return r.id === editingId; });
-        if (rec) {
-          Object.keys(formData).forEach(function(k) {
-            if (k !== 'assignee_id') rec[k] = formData[k];
-          });
-          if (formData.assignee_id !== undefined && isSuperAdmin) {
-            var a = users.find(function(u) { return u.id === formData.assignee_id; });
-            rec.assignee_id = formData.assignee_id || null;
-            rec.assignee_name = a ? a.display_name : '';
-          }
-          rec.updated_at = now();
-        }
-      } else {
-        var res = await fetchTimed('/api/records', {
-          method: 'POST', headers: headers, body: JSON.stringify(formData)
-        }, 10000);
-        if (!res.ok) {
-          var err = {};
-          try { err = await res.json(); } catch(e) {}
-          throw new Error(err.error || '保存失败(HTTP ' + res.status + ')');
-        }
-        var result = await res.json();
-        formData.id = result.id;
-        
-        // 乐观更新：直接加入内存列表
-        var newRec = Object.assign({}, formData, { updated_at: now(), created_at: now() });
-        if (formData.assignee_id) {
-          var a = users.find(function(u) { return u.id === formData.assignee_id; });
-          newRec.assignee_name = a ? a.display_name : '';
-        } else {
-          newRec.assignee_name = '';
-        }
-        records.push(newRec);
-      }
-      
-      closeModal();
-      renderStats();
-      renderTable();
-    } catch(e) {
-      alert('保存失败: ' + e.message + '\n请重试。');
-    } finally {
-      btnSave.textContent = '保存';
-      btnSave.disabled = false;
-    }
-    return;
-  }
-  
-  // ============ 网页端：rmw + 乐观更新（无延迟） ============
-  showLoading(true);
-  try {
-    var editingId = editingRecordId;
-    
-    await rmw(function(store) {
-      // 确保 fieldConfig 存在
-      ensureFieldConfig(store);
-      var cfg = store.settings.fieldConfig;
-      
-      if (editingId) {
-        var record = store.records.find(function(r) { return r.id === editingId; });
-        if (!record) throw new Error('记录不存在');
-        
-        if (!isAdminLike && record.assignee_id !== currentUser.id) {
-          throw new Error('无权编辑此记录，请联系管理员分配');
-        }
-        
-        // 根据权限确定可编辑字段
-        var editableKeys = isAdminLike
-          ? cfg.filter(function(f) { return f.visible !== false; }).map(function(f) { return f.key; })
-          : cfg.filter(function(f) { return f.visible !== false && f.editableBy === 'collab'; }).map(function(f) { return f.key; });
-        
-        // 管理员/副管理员还可以编辑记录中已有的其他key（向前兼容）
-        if (isAdminLike) {
-          Object.keys(record).forEach(function(k) {
-            if (k !== 'id' && k !== 'created_at' && k !== 'assignee_id' && k !== 'assignee_name' && editableKeys.indexOf(k) < 0) {
-              editableKeys.push(k);
-            }
-          });
-        }
-        
-        for (var k = 0; k < editableKeys.length; k++) {
-          var key = editableKeys[k];
-          if (formData[key] !== undefined) {
-            if (formData[key] !== record[key]) {
-              store.logs.push({
-                id: store.nextLogId++, record_id: record.id, user_id: currentUser.id,
-                action: 'update', field_updated: key,
-                old_value: String(record[key] || '').substring(0, 200),
-                new_value: String(formData[key] || '').substring(0, 200),
-                created_at: now()
-              });
-            }
-            record[key] = formData[key] || '';
-          }
-        }
-        
-        if (isAdmin && formData.assignee_id !== undefined) {
-          var assignee = store.users.find(function(u) { return u.id === formData.assignee_id; });
-          record.assignee_id = formData.assignee_id || null;
-          record.assignee_name = assignee ? assignee.display_name : '';
-        }
-        record.updated_at = now();
-      } else {
-        // 新建记录
-        var defaults = { id: store.nextRecordId++, assignee_id: formData.assignee_id || null, assignee_name: '', updated_at: now(), created_at: now() };
-        // 所有 fieldConfig 中的字段都初始化为空
-        for (var c = 0; c < cfg.length; c++) {
-          defaults[cfg[c].key] = '';
-        }
-        // 遗留 customFields 也初始化
-        if (store.settings.customFields) {
-          for (var cf = 0; cf < store.settings.customFields.length; cf++) {
-            defaults['cf_' + store.settings.customFields[cf].id] = '';
-          }
-        }
-        var newRecord = Object.assign({}, defaults);
-        for (var fk in formData) {
-          if (fk in newRecord) newRecord[fk] = formData[fk] || '';
-        }
-        if (formData.assignee_id) {
-          var assignee = store.users.find(function(u) { return u.id === formData.assignee_id; });
-          newRecord.assignee_name = assignee ? assignee.display_name : '';
-        }
-        store.records.push(newRecord);
-        formData.id = newRecord.id;
-        formData.created_at = newRecord.created_at;
-        formData.updated_at = newRecord.updated_at;
-      }
-    });
-    
-    closeModal();
-    
-    // 乐观更新内存（不再等 GitHub 缓存刷新！）
-    if (editingId) {
-      var rec = records.find(function(r) { return r.id === editingId; });
-      if (rec) {
-        Object.keys(formData).forEach(function(k) {
-          if (k !== 'assignee_id') rec[k] = formData[k];
-        });
-        if (isAdmin && formData.assignee_id !== undefined) {
-          var a = users.find(function(u) { return u.id === formData.assignee_id; });
-          rec.assignee_id = formData.assignee_id || null;
-          rec.assignee_name = a ? a.display_name : '';
-        }
-        rec.updated_at = now();
-      }
-    } else {
-      // 新记录直接加入内存
-      var newRec = Object.assign({}, formData, { updated_at: now(), created_at: now() });
-      if (!newRec.assignee_name) newRec.assignee_name = '';
-      records.push(newRec);
-    }
-    renderStats();
-    renderTable();
-  } catch(e) {
-    alert('保存失败: ' + e.message + '\n请重试。');
-  } finally {
-    btnSave.textContent = '保存';
-    btnSave.disabled = false;
-    showLoading(false);
-  }
-}
-
-// ============================================================
-// Delete Record
-// ============================================================
-async function deleteRecord() {
-  if (!editingRecordId) return;
-  if (!confirm('确定删除此记录吗？此操作不可恢复。')) return;
-  
-  showLoading(true);
-  try {
-    await rmw(function(store) {
-      var rid = editingRecordId;
-      store.logs = store.logs.filter(function(l) { return l.record_id !== rid; });
-      store.records = store.records.filter(function(r) { return r.id !== rid; });
-    });
-    closeModal();
-    await loadRecords();
-  } catch(e) {
-    alert('删除失败: ' + e.message);
-  } finally {
-    showLoading(false);
-  }
-}
-
-// ============================================================
-// Export Excel
-// ============================================================
-function exportExcel() {
-  // 使用 fieldConfig 动态生成导出列
-  var config = getActiveFieldConfig();
-  var headers = [];
-  var fields = [];
-  
-  for (var i = 0; i < config.length; i++) {
-    var f = config[i];
-    headers.push(f.label);
-    fields.push(f.key);
-  }
-  // 添加元数据列
-  headers.push('填写人', '更新时间');
-  fields.push('assignee_name', 'updated_at');
-  
-  var rows = [headers];
-  for (var r = 0; r < records.length; r++) {
-    var row = fields.map(function(f) {
-      if (f === 'assignee_name') {
-        var u = users.find(function(u) { return u.id === records[r].assignee_id; });
-        return u ? u.display_name : (records[r].assignee_name || '');
-      }
-      var val = records[r][f] || '';
-      // 附件字段导出时显示文件名列表（便于阅读）
-      var cf = config.find(function(c) { return c.key === f; });
-      if (cf && cf.type === 'file') {
-        var arr = parseAtts(val);
-        return arr.map(function(a) { return a.name; }).join('、');
-      }
-      return val;
-    });
-    rows.push(row);
-  }
-  
-  var filename = '民企清欠投诉清单_' + new Date().toISOString().split('T')[0];
-  
-  // 生成 Excel（返回 array 供 JSZip 使用；无附件时直接下载）
-  function buildXlsx() {
-    if (typeof XLSX === 'undefined') return null;
-    var wb = XLSX.utils.book_new();
-    var ws = XLSX.utils.aoa_to_sheet(rows);
-    ws['!cols'] = headers.map(function(h, i) {
-      var w = i < 8 ? 16 : (i >= 28 ? 22 : 18);
-      return { wch: Math.min(w, 40) };
-    });
-    XLSX.utils.book_append_sheet(wb, ws, '投诉清单');
-    return XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-  }
-  
-  // 统计所有附件
-  var allAtts = [];
-  records.forEach(function(rec) {
-    config.forEach(function(cf) {
-      if (cf.type !== 'file') return;
-      parseAtts(rec[cf.key]).forEach(function(a) {
-        allAtts.push({ rec: rec, att: a });
-      });
-    });
-  });
-  
-  // 无附件：直接下载 Excel（见下方 async 块）
-  showLoading(true);
-  (async function() {
-    try {
-      var xlsxArray = buildXlsx();
-      if (!xlsxArray) {
-        // CSV fallback
-        var csv = rows.map(function(rr) {
-          return rr.map(function(c) { return '"' + (c || '').toString().replace(/"/g, '""') + '"'; }).join(',');
-        }).join('\n');
-        var blob0 = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
-        var url0 = URL.createObjectURL(blob0);
-        var a0 = document.createElement('a');
-        a0.href = url0; a0.download = filename + '.csv'; a0.click();
-        setTimeout(function() { URL.revokeObjectURL(url0); }, 3000);
-        return;
-      }
-      
-      if (allAtts.length === 0) {
-        // 没有附件：直接下载单个 Excel
-        var blobX = new Blob([xlsxArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        var urlX = URL.createObjectURL(blobX);
-        var aX = document.createElement('a');
-        aX.href = urlX; aX.download = filename + '.xlsx'; aX.click();
-        setTimeout(function() { URL.revokeObjectURL(urlX); }, 3000);
-        return;
-      }
-      
-      // 有附件：打包 ZIP（Excel + 按线索编号命名的附件文件夹）
-      if (typeof JSZip === 'undefined') { alert('打包组件未加载，请检查网络后重试'); return; }
-      var zip = new JSZip();
-      zip.file(filename + '.xlsx', xlsxArray);
-      var downloaded = 0;
-      var failed = [];
-      for (var ai = 0; ai < allAtts.length; ai++) {
-        var item = allAtts[ai];
-        try {
-          var blob = await fetchAttachmentBlob(item.att.path);
-          var folderName = getRecordFolder(item.rec);
-          zip.folder(folderName).file(item.att.name, blob);
-          downloaded++;
-        } catch(e) {
-          failed.push(item.att.name);
-        }
-      }
-      var zipBlob = await zip.generateAsync({ type: 'blob' });
-      var url = URL.createObjectURL(zipBlob);
-      var a = document.createElement('a');
-      a.href = url; a.download = filename + '_含附件.zip'; a.click();
-      setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
-      if (failed.length > 0) {
-        alert('打包完成（' + downloaded + ' 个附件）。\n以下附件下载失败，请单独重试：\n' + failed.join('\n'));
-      } else {
-        alert('打包完成！共 ' + downloaded + ' 个附件已按线索编号分文件夹打包。');
-      }
-    } catch(e) {
-      alert('导出失败: ' + e.message);
-    } finally {
-      showLoading(false);
-    }
-  })();
-}
-
-// Click outside modal to close
-document.addEventListener('click', function(e) {
-  if (e.target.id === 'modalOverlay') closeModal();
-  if (e.target.id === 'settingsOverlay') closeSettings();
-  if (e.target.id === 'fieldEditOverlay') closeFieldEdit();
-});
-
-// ============================================================
-// Settings
-// ============================================================
-function openSettings() {
-  document.getElementById('settings_name').value = currentUser.display_name || '';
-  document.getElementById('settings_password').value = '';
-  renderCollaboratorList();
-  renderFieldManagement();
-  document.getElementById('settingsOverlay').classList.add('active');
-}
-
-function closeSettings() {
-  document.getElementById('settingsOverlay').classList.remove('active');
-}
-
-function switchSettingsTab(tab, btn) {
-  document.querySelectorAll('#settingsOverlay .tab').forEach(function(t) { t.classList.remove('active'); });
-  btn.classList.add('active');
-  document.getElementById('settingsTabProfile').style.display = tab === 'profile' ? '' : 'none';
-  document.getElementById('settingsTabUsers').style.display = tab === 'users' ? '' : 'none';
-  document.getElementById('settingsTabFields').style.display = tab === 'fields' ? '' : 'none';
-  if (tab === 'users') renderCollaboratorList();
-  if (tab === 'fields') renderFieldManagement();
-}
-
-async function saveAdminProfile() {
-  var display_name = document.getElementById('settings_name').value.trim();
-  var password = document.getElementById('settings_password').value;
-  if (!display_name) { alert('请输入显示名称'); return; }
-  
-  showLoading(true);
-  try {
-    await rmw(function(store) {
-      var admin = store.users.find(function(u) { return u.role === 'admin'; });
-      if (!admin) throw new Error('管理员不存在');
-      admin.display_name = display_name;
-      if (password && password.length >= 4) admin.password = password;
-    });
-    
-    currentUser.display_name = display_name;
-    localStorage.setItem('qqUser', JSON.stringify(currentUser));
-    document.getElementById('userDisplay').innerHTML = '<strong>' + display_name + '</strong> (管理员)';
-    document.getElementById('settings_password').value = '';
-    alert('管理员信息已更新！');
-    closeSettings();
-  } catch(e) {
-    alert('保存失败: ' + e.message);
-  } finally {
-    showLoading(false);
-  }
-}
-
-function renderFieldManagement() {
-  var config = getActiveFieldConfig();
-  var sections = ['basic', 'detail', 'custom'];
-  var containerIds = ['basicFieldsList', 'detailFieldsList', 'customFieldsList'];
-  
-  for (var s = 0; s < sections.length; s++) {
-    var container = document.getElementById(containerIds[s]);
-    if (!container) continue;
-    var sectionFields = config.filter(function(f) { return f.section === sections[s]; });
-    if (sectionFields.length === 0) {
-      container.innerHTML = '<p style="color:var(--text-secondary);font-size:12px;padding:8px">暂无字段</p>';
-      continue;
-    }
-    container.innerHTML = sectionFields.map(function(f, idx) {
-      var visibleChecked = f.visible !== false ? 'checked' : '';
-      var editableChecked = f.editableBy === 'collab' ? 'checked' : '';
-      var typeLabel = f.type === 'textarea' ? '多行文本' : f.type === 'select' ? '下拉' : f.type === 'date' ? '日期' : '文本';
-      var canUp = idx > 0 ? '' : ' style="opacity:.35;pointer-events:none"';
-      var canDown = idx < sectionFields.length - 1 ? '' : ' style="opacity:.35;pointer-events:none"';
-      
-      return '<div class="cf-item">' +
-        '<div style="flex:1;min-width:0">' +
-          '<strong style="font-size:13px;cursor:pointer" onclick="editField(\'' + f.key + '\')" title="点击编辑字段">' + f.label + '</strong>' +
-          '<span style="color:var(--text-secondary);font-size:11px;margin-left:8px">' + typeLabel + '</span>' +
-        '</div>' +
-        '<div style="display:flex;gap:8px;align-items:center;flex-shrink:0">' +
-          '<div style="display:flex;flex-direction:column;gap:2px">' +
-            '<button class="btn btn-sm" onclick="moveField(\'' + f.key + '\', -1)"' + canUp + ' title="上移" style="font-size:10px;padding:0 6px;line-height:16px">▲</button>' +
-            '<button class="btn btn-sm" onclick="moveField(\'' + f.key + '\', 1)"' + canDown + ' title="下移" style="font-size:10px;padding:0 6px;line-height:16px">▼</button>' +
-          '</div>' +
-          '<label style="font-size:11px;cursor:pointer;display:flex;align-items:center;gap:3px;white-space:nowrap">' +
-            '<input type="checkbox" ' + visibleChecked + ' onchange="toggleFieldVisible(\'' + f.key + '\', this.checked)" style="width:14px;height:14px;accent-color:var(--primary)">显示' +
-          '</label>' +
-          '<label style="font-size:11px;cursor:pointer;display:flex;align-items:center;gap:3px;white-space:nowrap">' +
-            '<input type="checkbox" ' + editableChecked + ' onchange="toggleFieldEditable(\'' + f.key + '\', this.checked)" style="width:14px;height:14px;accent-color:var(--info)">协作人可填' +
-          '</label>' +
-          '<button class="btn btn-sm" onclick="editField(\'' + f.key + '\')" title="修改字段" style="font-size:11px;padding:2px 8px">编辑</button>' +
-          '<button class="btn btn-danger btn-sm" onclick="deleteField(\'' + f.key + '\')" style="font-size:11px;padding:2px 8px">删除</button>' +
-        '</div>' +
-      '</div>';
-    }).join('');
-  }
-}
-
-async function toggleFieldVisible(key, visible) {
-  showLoading(true);
-  try {
-    await saveFieldConfig(function(settings) {
-      var field = settings.fieldConfig.find(function(f) { return f.key === key; });
-      if (field) field.visible = visible;
-    });
-    renderFieldManagement();
-  } catch(e) {
-    alert('保存失败: ' + e.message);
-    renderFieldManagement(); // revert UI
-  } finally {
-    showLoading(false);
-  }
-}
-
-async function toggleFieldEditable(key, collabEditable) {
-  showLoading(true);
-  try {
-    await saveFieldConfig(function(settings) {
-      var field = settings.fieldConfig.find(function(f) { return f.key === key; });
-      if (field) field.editableBy = collabEditable ? 'collab' : 'admin';
-    });
-    renderFieldManagement();
-  } catch(e) {
-    alert('保存失败: ' + e.message);
-    renderFieldManagement();
-  } finally {
-    showLoading(false);
-  }
-}
-
-// ============================================================
-// Collaborator Management
-// ============================================================
-function renderCollaboratorList() {
-  var container = document.getElementById('collaboratorList');
-  if (!container) return;
-  var collaborators = users.filter(function(u) { return u.role !== 'admin'; });
-  if (collaborators.length === 0) {
-    container.innerHTML = '<p style="color:var(--text-secondary);font-size:13px;text-align:center;padding:20px">暂无用户，在下方添加</p>';
-    return;
-  }
-  container.innerHTML = collaborators.map(function(u) {
-    var isSubAdmin = u.role === 'sub_admin';
-    var roleTag = isSubAdmin
-      ? '<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(59,130,246,0.2);color:var(--primary);margin-left:6px">副管理员</span>'
-      : '<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(148,163,184,0.15);color:var(--text-secondary);margin-left:6px">协作者</span>';
-    var roleBtn = isSubAdmin
-      ? '<button class="btn btn-outline btn-sm" onclick="changeUserRole(' + u.id + ', \'user\')" style="font-size:11px;padding:2px 8px;margin-right:4px">降为协作者</button>'
-      : '<button class="btn btn-outline btn-sm" onclick="changeUserRole(' + u.id + ', \'sub_admin\')" style="font-size:11px;padding:2px 8px;margin-right:4px">升为副管理员</button>';
-    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;background:var(--bg)">' +
-      '<div><strong style="font-size:13px">' + u.display_name + '</strong><span style="color:var(--text-secondary);font-size:11px;margin-left:8px">@' + u.username + '</span>' + roleTag + '</div>' +
-      '<div style="display:flex;gap:4px">' + roleBtn + '<button class="btn btn-danger btn-sm" onclick="deleteCollaborator(' + u.id + ')" style="font-size:11px;padding:2px 8px">删除</button></div>' +
+  var pct = total ? Math.round(done / total * 100) : 0;
+  var html = '<div class="rec-nums">' +
+    '<div class="rec-num total"><div class="v">' + total + '</div><div class="l">投诉总数</div></div>' +
+    '<div class="rec-num doing"><div class="v">' + doing + '</div><div class="l">办理中</div></div>' +
+    '<div class="rec-num done"><div class="v">' + done + '</div><div class="l">已办结</div></div>' +
+    '<div class="rec-num delay"><div class="v">' + delayed + '</div><div class="l">延期</div></div>' +
+    (isAdminLike ? '<div class="rec-num overdue"><div class="v">' + overdue + '</div><div class="l">已逾期</div></div>' +
+      '<div class="rec-num soon"><div class="v">' + dueSoon + '</div><div class="l">7天内到期</div></div>' : '') +
+    '</div>' +
+    '<div class="progress-wrap">' +
+      '<div class="progress-label"><span>办结率</span><span>' + pct + '%（' + done + '/' + total + '）</span></div>' +
+      '<div class="progress-bar"><div class="progress-fill" style="width:' + pct + '%"></div></div>' +
     '</div>';
-  }).join('');
+  el.innerHTML = html;
 }
 
-async function changeUserRole(id, newRole) {
-  var user = users.find(function(u) { return u.id === id; });
-  if (!user) return;
-  var label = newRole === 'sub_admin' ? '副管理员' : '协作者';
-  if (!confirm('确定将「' + user.display_name + '」的角色改为「' + label + '」吗？')) return;
-  
-  showLoading(true);
-  try {
-    await rmw(function(store) {
-      var u = store.users.find(function(x) { return x.id === id; });
-      if (u) u.role = newRole;
-    });
-    // 同步更新内存
-    user.role = newRole;
-    renderCollaboratorList();
-    alert('已将「' + user.display_name + '」设为' + label);
-  } catch(e) {
-    alert('修改失败: ' + e.message);
-  } finally {
-    showLoading(false);
-  }
+// ============ Stats modal & export ============
+function openStatsModal() {
+  statsTab = 0;
+  showStatsTab(0);
+  openModal('statsModal');
 }
 
-async function addCollaborator() {
-  var username = document.getElementById('new_user_username').value.trim();
-  var display_name = document.getElementById('new_user_display').value.trim();
-  var password = document.getElementById('new_user_password').value.trim();
-  var role = document.getElementById('new_user_role').value;
-  
-  if (!username || !display_name) { alert('请填写用户名和显示名称'); return; }
-  if (!/^[a-z0-9_]{2,20}$/i.test(username)) { alert('用户名只允许字母数字下划线，2-20位'); return; }
-  
-  if (!password) { password = username; }
-  if (password.length < 4) { alert('密码至少4位'); return; }
-  
-  showLoading(true);
-  try {
-    await rmw(function(store) {
-      if (store.users.find(function(u) { return u.username === username; })) {
-        throw new Error('用户名已存在');
-      }
-      store.users.push({
-        id: store.nextUserId++, username: username, password: password,
-        display_name: display_name, phone: '', role: role
-      });
-    });
-    
-    document.getElementById('new_user_username').value = '';
-    document.getElementById('new_user_display').value = '';
-    document.getElementById('new_user_password').value = '';
-    await loadRecords();
-    renderCollaboratorList();
-    var roleLabel = role === 'sub_admin' ? '副管理员' : '协作者';
-    alert(roleLabel + '已创建！\n用户名：' + username + '\n初始密码：' + password + '\n\n请将以上信息发给' + roleLabel + '。');
-  } catch(e) {
-    alert(e.message || '创建失败');
-  } finally {
-    showLoading(false);
-  }
-}
-
-async function deleteCollaborator(id) {
-  var user = users.find(function(u) { return u.id === id; });
-  var roleLabel = user && user.role === 'sub_admin' ? '副管理员' : '协作者';
-  var name = user ? user.display_name : '此用户';
-  if (!confirm('确定删除' + roleLabel + '「' + name + '」吗？已分配给该用户的记录将变为"未分配"状态。')) return;
-  
-  showLoading(true);
-  try {
-    await rmw(function(store) {
-      store.users = store.users.filter(function(u) { return u.id !== id || u.role === 'admin'; });
-      store.records.forEach(function(r) { if (r.assignee_id === id) { r.assignee_id = null; r.assignee_name = ''; } });
-    });
-    
-    records.forEach(function(r) { if (r.assignee_id === id) { r.assignee_id = null; r.assignee_name = ''; } });
-    await loadRecords();
-    renderCollaboratorList();
-  } catch(e) {
-    alert('删除失败: ' + e.message);
-  } finally {
-    showLoading(false);
-  }
-}
-
-function toggleCfOptions() {
-  document.getElementById('cf_options_area').style.display =
-    document.getElementById('cf_type').value === 'select' ? '' : 'none';
-}
-
-async function addCustomField() {
-  var label = document.getElementById('cf_label').value.trim();
-  var type = document.getElementById('cf_type').value;
-  var section = document.getElementById('cf_section').value;
-  var editableBy = document.getElementById('cf_editableBy').value;
-  var optionsText = document.getElementById('cf_options').value.trim();
-  
-  if (!label) { alert('请输入字段名称'); return; }
-  
-  var body = { label: label, type: type, section: section, editableBy: editableBy };
-  if (type === 'select') {
-    body.options = optionsText.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s; });
-    if (body.options.length === 0) { alert('请至少输入一个下拉选项'); return; }
-  }
-  
-  showLoading(true);
-  try {
-    var newKey = '';
-    await saveFieldConfig(function(settings) {
-      if (!settings.customFields) settings.customFields = [];
-      if (!settings.nextCfId) settings.nextCfId = 1;
-      
-      var cfId = settings.nextCfId++;
-      newKey = 'cf_' + cfId;
-      
-      // 添加到 customFields（向后兼容）
-      settings.customFields.push({
-        id: cfId,
-        label: body.label, type: body.type,
-        section: body.section || 'custom',
-        order: (settings.customFields.length + 1),
-        options: body.type === 'select' ? (body.options || []) : []
-      });
-      
-      // 同时添加到 fieldConfig
-      settings.fieldConfig.push({
-        key: newKey,
-        label: body.label,
-        type: body.type,
-        options: body.type === 'select' ? (body.options || []) : [],
-        section: body.section || 'custom',
-        editableBy: body.editableBy || 'collab',
-        visible: true,
-        isCustom: true,
-        cfId: cfId
-      });
-    });
-    
-    // 给本地所有记录添加空默认值
-    records.forEach(function(r) { r[newKey] = ''; });
-    document.getElementById('cf_label').value = '';
-    document.getElementById('cf_options').value = '';
-    renderFieldManagement();
-  } catch(e) {
-    alert('添加失败: ' + e.message);
-  } finally {
-    showLoading(false);
-  }
-}
-
-// 删除字段：内置字段仅从配置移除（保留记录数据）；自定义字段可选择一并清除数据
-async function deleteField(key) {
-  var config = getActiveFieldConfig();
-  var field = config.find(function(f) { return f.key === key; });
-  if (!field) return;
-  
-  var msg = field.isCustom
-    ? '确定删除自定义字段「' + field.label + '」吗？\n记录中该字段的数据将被清除，且不可恢复！'
-    : '确定删除内置字段「' + field.label + '」吗？\n该字段将从表单/表格/导出中移除，记录中已有数据将保留。';
-  if (!confirm(msg)) return;
-  
-  showLoading(true);
-  try {
-    await saveFieldConfig(function(settings) {
-      // 从 fieldConfig 中删除
-      settings.fieldConfig = settings.fieldConfig.filter(function(f) { return f.key !== key; });
-      if (field.isCustom) {
-        // 从 customFields 中删除
-        var cfId = parseInt(key.replace('cf_', ''));
-        if (cfId) {
-          settings.customFields = (settings.customFields || []).filter(function(f) { return f.id !== cfId; });
-        }
-      }
-    });
-    // 自定义字段：清除记录数据；内置字段：保留数据
-    if (field.isCustom) {
-      records.forEach(function(r) { delete r[key]; });
+function buildStats() {
+  var byPolicy = [];
+  var byUser = {};
+  var details = [];
+  for (var i = 0; i < policies.length; i++) {
+    var p = policies[i];
+    var downloads = p.downloads || [];
+    byPolicy.push({ title: p.title, uploadedAt: p.uploadedAt, count: downloads.length, users: {} });
+    for (var j = 0; j < downloads.length; j++) {
+      var d = downloads[j];
+      var uname = d.username || '未知';
+      details.push({ policyTitle: p.title, policyId: p.id, username: uname, displayName: d.displayName || uname, downloadedAt: d.downloadedAt });
+      if (!byUser[uname]) byUser[uname] = { username: uname, displayName: d.displayName || uname, count: 0 };
+      byUser[uname].count++;
+      var last = byPolicy[byPolicy.length - 1];
+      last.users[uname] = (last.users[uname] || 0) + 1;
     }
-    renderFieldManagement();
-    renderTable();
-  } catch(e) {
-    alert('删除失败: ' + e.message);
-  } finally {
-    showLoading(false);
   }
+  byPolicy.forEach(function(x) { x.userCount = Object.keys(x.users).length; });
+  return { byPolicy: byPolicy, byUser: Object.values(byUser), details: details };
 }
 
-// 字段排序：在同一区域内上移/下移
-async function moveField(key, dir) {
-  var config = getActiveFieldConfig();
-  var field = config.find(function(f) { return f.key === key; });
-  if (!field) return;
-  var sectionFields = config.filter(function(f) { return f.section === field.section; });
-  var idx = sectionFields.findIndex(function(f) { return f.key === key; });
-  var target = idx + dir;
-  if (idx < 0 || target < 0 || target >= sectionFields.length) return;
-  
-  showLoading(true);
-  try {
-    await saveFieldConfig(function(settings) {
-      var list = settings.fieldConfig;
-      var i = list.findIndex(function(f) { return f.key === key; });
-      if (i < 0) return;
-      var section = list[i].section;
-      // 在同 section 内找相邻字段
-      var j = i + dir;
-      while (j >= 0 && j < list.length && list[j].section !== section) j += dir;
-      if (j < 0 || j >= list.length) return;
-      var tmp = list[i]; list[i] = list[j]; list[j] = tmp;
-    });
-    renderFieldManagement();
-  } catch(e) {
-    alert('排序失败: ' + e.message);
-    renderFieldManagement();
-  } finally {
-    showLoading(false);
+function showStatsTab(tab) {
+  statsTab = tab;
+  for (var i = 0; i < 3; i++) {
+    document.getElementById('statsTab' + i).classList.toggle('active', i === tab);
   }
-}
-
-// ============ 编辑字段弹窗 ============
-var editingFieldKey = null;
-function editField(key) {
-  var config = getActiveFieldConfig();
-  var field = config.find(function(f) { return f.key === key; });
-  if (!field) return;
-  editingFieldKey = key;
-  
-  document.getElementById('fe_label').value = field.label;
-  document.getElementById('fe_editableBy').value = field.editableBy || 'collab';
-  document.getElementById('fe_type').value = field.type || 'text';
-  document.getElementById('fe_type').disabled = !field.isCustom; // 内置字段类型不可改
-  document.getElementById('fe_section').value = field.section || 'custom';
-  document.getElementById('fe_section').disabled = !field.isCustom;
-  document.getElementById('fe_options').value = (field.options || []).join('\n');
-  document.getElementById('fe_options_area').style.display = field.type === 'select' ? '' : 'none';
-  document.getElementById('fieldEditOverlay').classList.add('active');
-}
-
-function feToggleOptions() {
-  document.getElementById('fe_options_area').style.display =
-    document.getElementById('fe_type').value === 'select' ? '' : 'none';
-}
-
-async function saveFieldEdit() {
-  var label = document.getElementById('fe_label').value.trim();
-  if (!label) { alert('请输入字段名称'); return; }
-  
-  var config = getActiveFieldConfig();
-  var field = config.find(function(f) { return f.key === editingFieldKey; });
-  if (!field) { alert('字段不存在，请刷新页面重试'); return; }
-  
-  var newType = field.isCustom ? document.getElementById('fe_type').value : field.type;
-  var newSection = field.isCustom ? document.getElementById('fe_section').value : field.section;
-  var newOptions = [];
-  if (newType === 'select') {
-    newOptions = document.getElementById('fe_options').value.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s; });
-    if (newOptions.length === 0) { alert('请至少输入一个下拉选项'); return; }
-  }
-  var newEditableBy = document.getElementById('fe_editableBy').value || 'collab';
-  
-  showLoading(true);
-  try {
-    if (IS_DESKTOP) {
-      // Desktop: atomic single-field update — no GET-then-PUT race
-      var res = await fetchTimed('/api/settings/field', {
-        method: 'PUT',
-        headers: authHeaders(),
-        body: JSON.stringify({
-          key: editingFieldKey,
-          label: label,
-          editableBy: newEditableBy,
-          type: field.isCustom ? newType : undefined,
-          section: field.isCustom ? newSection : undefined,
-          options: newType === 'select' ? newOptions : undefined
-        })
-      }, 10000);
-      if (!res.ok) {
-        var err = {}; try { err = await res.json(); } catch(ee) {}
-        throw new Error(err.error || '保存失败(HTTP ' + res.status + ')');
-      }
-      var result = await res.json();
-      // Update local fieldConfig from server response
-      var updatedField = result.field;
-      if (updatedField) {
-        var idx = fieldConfig.findIndex(function(f) { return f.key === editingFieldKey; });
-        if (idx >= 0) fieldConfig[idx] = updatedField;
-      }
-    } else {
-      // Web mode: rmw with more retries
-      await rmw(function(store) {
-        ensureFieldConfig(store);
-        if (!store.settings.fieldConfigUpdatedAt) store.settings.fieldConfigUpdatedAt = now();
-        var f = store.settings.fieldConfig.find(function(x) { return x.key === editingFieldKey; });
-        if (f) {
-          f.label = label;
-          f.editableBy = newEditableBy;
-          if (newType === 'select') f.options = newOptions;
-          if (field.isCustom) {
-            f.type = newType;
-            f.section = newSection;
-            var cf = (store.settings.customFields || []).find(function(c) { return c.id === f.cfId; });
-            if (cf) { cf.label = label; cf.type = newType; cf.section = newSection; cf.options = newOptions; }
-          }
-        }
-        store.settings.fieldConfigUpdatedAt = now();
-      }, 5);
-      // Update local fieldConfig from the modification we just made
-      var lf = fieldConfig.find(function(f) { return f.key === editingFieldKey; });
-      if (lf) {
-        lf.label = label;
-        lf.editableBy = newEditableBy;
-        if (newType === 'select') lf.options = newOptions;
-      }
+  var stats = buildStats();
+  var table = document.getElementById('statsTable');
+  var summary = document.getElementById('statsSummary');
+  var totalDownloads = stats.details.length;
+  var totalUsers = stats.byUser.length;
+  summary.innerHTML = '<span>政策文件：<b>' + policies.length + '</b> 份</span>' +
+    '<span>下载总次数：<b>' + totalDownloads + '</b> 次</span>' +
+    '<span>学习人员：<b>' + totalUsers + '</b> 人</span>';
+  var html = '';
+  if (tab === 0) {
+    html = '<thead><tr><th>#</th><th>政策名称</th><th>下载人账号</th><th>下载人姓名</th><th>下载时间</th></tr></thead><tbody>';
+    if (!stats.details.length) html += '<tr><td colspan="5" style="text-align:center;color:var(--text-secondary);padding:30px">暂无下载记录</td></tr>';
+    for (var i = 0; i < stats.details.length; i++) {
+      var d = stats.details[i];
+      html += '<tr><td>' + (i + 1) + '</td><td title="' + esc(d.policyTitle) + '">' + esc(d.policyTitle) + '</td><td>' + esc(d.username) + '</td><td>' + esc(d.displayName) + '</td><td>' + esc(d.downloadedAt) + '</td></tr>';
     }
-    closeFieldEdit();
-    renderFieldManagement();
-    renderTable();
-    // Refresh data in background — don't block the save success
-    loadRecords(true).catch(function() {});
-  } catch(e) {
-    alert('保存失败: ' + e.message);
-  } finally {
-    showLoading(false);
+  } else if (tab === 1) {
+    html = '<thead><tr><th>#</th><th>政策名称</th><th>上传时间</th><th>下载次数</th><th>下载人数</th></tr></thead><tbody>';
+    if (!stats.byPolicy.length) html += '<tr><td colspan="5" style="text-align:center;color:var(--text-secondary);padding:30px">暂无政策</td></tr>';
+    for (var i = 0; i < stats.byPolicy.length; i++) {
+      var p = stats.byPolicy[i];
+      html += '<tr><td>' + (i + 1) + '</td><td title="' + esc(p.title) + '">' + esc(p.title) + '</td><td>' + esc((p.uploadedAt || '').substring(0, 10)) + '</td><td class="num">' + p.count + '</td><td class="num">' + p.userCount + '</td></tr>';
+    }
+  } else {
+    html = '<thead><tr><th>#</th><th>姓名</th><th>账号</th><th>下载次数</th></tr></thead><tbody>';
+    if (!stats.byUser.length) html += '<tr><td colspan="4" style="text-align:center;color:var(--text-secondary);padding:30px">暂无下载记录</td></tr>';
+    for (var i = 0; i < stats.byUser.length; i++) {
+      var u = stats.byUser[i];
+      html += '<tr><td>' + (i + 1) + '</td><td>' + esc(u.displayName) + '</td><td>' + esc(u.username) + '</td><td class="num">' + u.count + '</td></tr>';
+    }
   }
+  html += '</tbody>';
+  table.innerHTML = html;
 }
 
-function closeFieldEdit() {
-  editingFieldKey = null;
-  document.getElementById('fieldEditOverlay').classList.remove('active');
+function exportStats() {
+  var stats = buildStats();
+  var wb = XLSX.utils.book_new();
+  // Sheet 1: 下载明细
+  var rows1 = [['序号', '政策名称', '下载人账号', '下载人姓名', '下载时间']];
+  for (var i = 0; i < stats.details.length; i++) {
+    var d = stats.details[i];
+    rows1.push([i + 1, d.policyTitle, d.username, d.displayName, d.downloadedAt]);
+  }
+  var ws1 = XLSX.utils.aoa_to_sheet(rows1);
+  ws1['!cols'] = [{ wch: 6 }, { wch: 40 }, { wch: 14 }, { wch: 14 }, { wch: 22 }];
+  XLSX.utils.book_append_sheet(wb, ws1, '下载明细');
+  // Sheet 2: 政策汇总
+  var rows2 = [['序号', '政策名称', '上传时间', '下载次数', '下载人数']];
+  for (var i = 0; i < stats.byPolicy.length; i++) {
+    var p = stats.byPolicy[i];
+    rows2.push([i + 1, p.title, (p.uploadedAt || '').substring(0, 10), p.count, p.userCount]);
+  }
+  var ws2 = XLSX.utils.aoa_to_sheet(rows2);
+  ws2['!cols'] = [{ wch: 6 }, { wch: 40 }, { wch: 14 }, { wch: 10 }, { wch: 10 }];
+  XLSX.utils.book_append_sheet(wb, ws2, '政策汇总');
+  // Sheet 3: 人员汇总
+  var rows3 = [['序号', '姓名', '账号', '下载次数']];
+  for (var i = 0; i < stats.byUser.length; i++) {
+    var u = stats.byUser[i];
+    rows3.push([i + 1, u.displayName, u.username, u.count]);
+  }
+  var ws3 = XLSX.utils.aoa_to_sheet(rows3);
+  ws3['!cols'] = [{ wch: 6 }, { wch: 14 }, { wch: 14 }, { wch: 10 }];
+  XLSX.utils.book_append_sheet(wb, ws3, '人员汇总');
+  XLSX.writeFile(wb, '民企清欠政策下载统计_' + todayStr() + '.xlsx');
 }
 
-// Init
+// ============ Boot ============
 checkAuth();
 </script>
 </body>
