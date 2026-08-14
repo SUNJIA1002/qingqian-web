@@ -668,9 +668,10 @@ async function ghLoadData() {
     return { data: data, sha: 'desktop' };
   }
   // Web mode: load from GitHub API
+  // 超时放宽到 60s：弱网下 GET 全量数据(~120KB)可能超过 15s，超时被误判为保存失败
   var res = await fetchTimed(
     'https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + GH.path + '?ref=' + GH.branch,
-    { headers: ghHeaders() }, 15000
+    { headers: ghHeaders() }, 60000
   );
   if (!res.ok) throw new Error('读取失败(HTTP ' + res.status + ')，请检查网络');
   var file = await res.json();
@@ -737,6 +738,7 @@ async function rmw(modifyFn, maxRetries) {
   maxRetries = maxRetries || 5;
   // 整个读-改-写过程串行入队，避免并发写互相踩 sha
   return enqueueWrite(async function() {
+    let putStarted = false; // 标记是否已进入 PUT 阶段（区分 GET/PUT 超时）
     for (let i = 0; i < maxRetries; i++) {
       try {
         // Reuse fresh cache (within 30s) to skip the GET round trip
@@ -770,6 +772,7 @@ async function rmw(modifyFn, maxRetries) {
         }
         if (!data.logs) data.logs = [];
         modifyFn(data);
+        putStarted = true; // 进入 PUT 阶段：此后超时=可能已写入，不能盲目重试
         var newSha = await ghSaveData(data, sha);
         // Update cache so the next rmw skips GET (web: saves ~1.5s)
         rmwCache.data = data;
@@ -779,9 +782,14 @@ async function rmw(modifyFn, maxRetries) {
       } catch(e) {
         // On conflict (stale sha) or network failure: invalidate cache so next attempt re-GETs
         rmwCache.data = null;
-        // 超时错误：PUT 可能已成功写入，不盲目重试（防止重复创建记录），提示用户确认
-        if (e.name === 'AbortError' || /aborted|timeout/i.test(String(e.message || ''))) {
+        const isTimeout = e.name === 'AbortError' || /aborted|timeout/i.test(String(e.message || ''));
+        // PUT 阶段超时：数据可能已成功写入，不盲目重试（防止重复创建记录），提示用户确认
+        if (isTimeout && putStarted) {
           throw new Error('保存超时：请刷新页面确认是否已保存（若未保存请重试）');
+        }
+        // GET 阶段超时：什么都没写入，属于弱网读取慢 → 清缓存继续重试（下次重新 GET）
+        if (isTimeout) {
+          console.log('读取超时(第' + (i + 1) + '次)，重新尝试: ' + e.message);
         }
         if (i === maxRetries - 1) throw e;
         var waitMs = isRateLimitError(e.message) ? 2500 : (isConflictError(e.message) ? 800 : 1200);
@@ -1720,7 +1728,7 @@ async function deleteAttachment(fieldKey, path, btn) {
         await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + encodeURIComponent(ghPath), {
           method: 'DELETE', headers: ghHeaders(),
           body: JSON.stringify({ message: 'delete ' + ghPath, sha: sha, branch: GH.branch })
-        }, 15000);
+        }, 60000);
       }
       await rmw(function(store) {
         var r = store.records.find(function(x) { return x.id === editingRecordId; });
@@ -1743,7 +1751,7 @@ async function deleteAttachment(fieldKey, path, btn) {
 }
 async function getGitHubFileSha(ghPath) {
   try {
-    var res = await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + encodeURIComponent(ghPath) + '?ref=' + GH.branch, { headers: ghHeaders() }, 15000);
+    var res = await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + encodeURIComponent(ghPath) + '?ref=' + GH.branch, { headers: ghHeaders() }, 60000);
     if (!res.ok) return null;
     var j = await res.json();
     return j.sha || null;
@@ -2095,6 +2103,10 @@ async function deleteRecord() {
   showToast('正在删除…', 'saving');
   try {
     await rmw(function(store) {
+      // 写入删除墓碑：其他端（App/其他电脑）合并时同步删除该记录，防止"复活"
+      if (!store.deletedRecordIds) store.deletedRecordIds = [];
+      if (store.deletedRecordIds.indexOf(rid) < 0) store.deletedRecordIds.push(rid);
+      store.deletedRecordIds = store.deletedRecordIds.slice(-500);
       store.logs = store.logs.filter(function(l) { return l.record_id !== rid; });
       store.records = store.records.filter(function(r) { return r.id !== rid; });
     });
