@@ -696,14 +696,15 @@ async function ghSaveData(data, sha) {
     return 'desktop';
   }
   // Web mode: save to GitHub API
-  var content = utf8ToB64(JSON.stringify(data, null, 2));
+  // 压缩 JSON（无缩进 -27% 体积）→ 更快写入；超时放宽到 60s（弱网不再误判失败）
+  var content = utf8ToB64(JSON.stringify(data));
   var res = await fetchTimed(
     'https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + GH.path,
     {
       method: 'PUT',
       headers: Object.assign({}, ghHeaders(), { 'Content-Type': 'application/json' }),
       body: JSON.stringify({ message: 'Update ' + now(), content: content, sha: sha, branch: GH.branch })
-    }, 25000
+    }, 60000
   );
   if (!res.ok) {
     var err = { message: '' };
@@ -778,6 +779,10 @@ async function rmw(modifyFn, maxRetries) {
       } catch(e) {
         // On conflict (stale sha) or network failure: invalidate cache so next attempt re-GETs
         rmwCache.data = null;
+        // 超时错误：PUT 可能已成功写入，不盲目重试（防止重复创建记录），提示用户确认
+        if (e.name === 'AbortError' || /aborted|timeout/i.test(String(e.message || ''))) {
+          throw new Error('保存超时：请刷新页面确认是否已保存（若未保存请重试）');
+        }
         if (i === maxRetries - 1) throw e;
         var waitMs = isRateLimitError(e.message) ? 2500 : (isConflictError(e.message) ? 800 : 1200);
         console.log('Retry ' + (i + 1) + ': ' + e.message + ' (wait ' + waitMs + 'ms)');
@@ -967,13 +972,13 @@ function init() {
     document.getElementById('syncBadge').style.display = 'inline-flex';
     updateSyncBadge();
   }
-  // Auto-refresh: desktop 15s (server pushes), web 30s (GitHub direct) — catch changes from other devices
+  // Auto-refresh: desktop 5s (server pushes), web 10s (GitHub direct) — near-real-time cross-device sync
   setInterval(function() {
     if (!editingRecordId && !document.getElementById('modalOverlay').style.display.includes('flex')) {
       loadRecords(true);
       if (IS_DESKTOP) updateSyncBadge();
     }
-  }, IS_DESKTOP ? 15000 : 30000);
+  }, IS_DESKTOP ? 5000 : 10000);
   loadRecords();
 }
 
