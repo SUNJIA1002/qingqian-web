@@ -557,7 +557,7 @@ async function ghLoadData() {
   }
   var res = await fetchTimed(
     'https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + GH.path + '?ref=' + GH.branch,
-    { headers: ghHeaders() }, 15000
+    { headers: ghHeaders() }, 60000
   );
   if (!res.ok) throw new Error('读取失败(HTTP ' + res.status + ')，请检查网络');
   var file = await res.json();
@@ -617,6 +617,7 @@ function isRateLimitError(msg) {
 async function rmw(modifyFn, maxRetries) {
   maxRetries = maxRetries || 5;
   return enqueueWrite(async function() {
+    var putStarted = false; // 标记是否已进入 PUT 阶段（区分 GET/PUT 超时）
     for (var i = 0; i < maxRetries; i++) {
       try {
         var data, sha;
@@ -628,6 +629,7 @@ async function rmw(modifyFn, maxRetries) {
         }
         ensurePortalCollections(data);
         modifyFn(data);
+        putStarted = true; // 进入 PUT 阶段：此后超时=可能已写入，不能盲目重试
         var newSha = await ghSaveData(data, sha);
         rmwCache.data = data;
         rmwCache.sha = newSha || sha;
@@ -635,9 +637,14 @@ async function rmw(modifyFn, maxRetries) {
         return;
       } catch(e) {
         rmwCache.data = null;
-        // 超时错误：PUT 可能已成功写入，不盲目重试（防止重复创建记录），提示用户确认
-        if (e.name === 'AbortError' || /aborted|timeout/i.test(String(e.message || ''))) {
+        var isTimeout = e.name === 'AbortError' || /aborted|timeout/i.test(String(e.message || ''));
+        // PUT 阶段超时：数据可能已成功写入，不盲目重试（防止重复创建），提示用户确认
+        if (isTimeout && putStarted) {
           throw new Error('保存超时：请刷新页面确认是否已保存（若未保存请重试）');
+        }
+        // GET 阶段超时：什么都没写入，属于弱网读取慢 → 继续重试
+        if (isTimeout) {
+          console.log('读取超时(第' + (i + 1) + '次)，重新尝试: ' + e.message);
         }
         if (i === maxRetries - 1) throw e;
         var waitMs = isRateLimitError(e.message) ? 2500 : (isConflictError(e.message) ? 800 : 1200);
@@ -993,7 +1000,7 @@ async function savePolicy() {
             await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + encodeURIComponent(oldPath), {
               method: 'DELETE', headers: ghHeaders(),
               body: JSON.stringify({ message: 'delete old policy file ' + oldPath, sha: oldSha, branch: GH.branch })
-            }, 15000).catch(function() {});
+            }, 60000).catch(function() {});
           }
         }
       } else {
@@ -1096,7 +1103,7 @@ async function deletePolicy(id) {
         await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + encodeURIComponent(p.path), {
           method: 'DELETE', headers: ghHeaders(),
           body: JSON.stringify({ message: 'delete policy ' + p.path, sha: sha, branch: GH.branch })
-        }, 15000);
+        }, 60000);
       }
       await rmw(function(store) {
         ensurePortalCollections(store);
@@ -1387,7 +1394,7 @@ async function deleteTrainingFile(id, path) {
         await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + encodeURIComponent(path), {
           method: 'DELETE', headers: ghHeaders(),
           body: JSON.stringify({ message: 'delete ' + path, sha: sha, branch: GH.branch })
-        }, 15000);
+        }, 60000);
       }
       await rmw(function(store) {
         ensurePortalCollections(store);
@@ -1427,7 +1434,7 @@ async function deleteTraining(id) {
           await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + encodeURIComponent(fpath), {
             method: 'DELETE', headers: ghHeaders(),
             body: JSON.stringify({ message: 'delete ' + fpath, sha: sha, branch: GH.branch })
-          }, 15000).catch(function() {});
+          }, 60000).catch(function() {});
         }
       }, 3);
       await rmw(function(store) {
@@ -1479,7 +1486,7 @@ async function fetchFileBlob(path) {
 
 async function getGitHubFileSha(ghPath) {
   try {
-    var res = await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + encodeURIComponent(ghPath) + '?ref=' + GH.branch, { headers: ghHeaders() }, 15000);
+    var res = await fetchTimed('https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + encodeURIComponent(ghPath) + '?ref=' + GH.branch, { headers: ghHeaders() }, 60000);
     if (!res.ok) return null;
     var j = await res.json();
     return j.sha || null;
