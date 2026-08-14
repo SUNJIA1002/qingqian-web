@@ -315,6 +315,26 @@ td.check-col input { cursor: pointer; width: 14px; height: 14px; accent-color: v
 .loading-box { display: flex; flex-direction: column; align-items: center; gap: 14px; }
 .loading-text { color: #e2e8f0; font-size: 14px; max-width: 420px; text-align: center; line-height: 1.6; padding: 0 20px; }
 .loading-text b { color: #93c5fd; font-weight: 600; }
+/* 全局同步提示 toast */
+.toast-wrap {
+  position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 8px;
+  background: #0f172a; border: 1px solid rgba(255,255,255,.15);
+  color: #e2e8f0; border-radius: 10px; padding: 10px 18px;
+  box-shadow: 0 8px 30px rgba(0,0,0,.45); z-index: 500;
+  font-size: 13px; max-width: 86vw;
+}
+.toast-icon {
+  width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; color: #fff;
+}
+.toast-wrap.ok .toast-icon { background: #22c55e; }
+.toast-wrap.saving .toast-icon { background: #3b82f6; }
+.toast-wrap.err .toast-icon { background: #ef4444; }
+.toast-wrap.saving .toast-icon { animation: spin .9s linear infinite; }
+.toast-msg { line-height: 1.45; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
 /* Mobile responsive */
@@ -327,6 +347,11 @@ td.check-col input { cursor: pointer; width: 14px; height: 14px; accent-color: v
 </head>
 <body>
 <div class="container">
+  <!-- 全局同步提示（网页版保存状态，替代打断式 alert） -->
+  <div class="toast-wrap" id="toastWrap" style="display:none">
+    <div class="toast-icon" id="toastIcon">✓</div>
+    <div class="toast-msg" id="toastMsg">已保存</div>
+  </div>
   <!-- Header -->
   <div class="header">
     <h1>民企清欠 <span>进度管理系统</span></h1>
@@ -691,56 +716,75 @@ async function ghSaveData(data, sha) {
 
 // Read-Modify-Write with retry for concurrent edits.
 // Uses a short-lived cache to avoid a redundant GET right after a successful PUT (halves latency on web).
+// v2: 写操作串行队列 + 30s 缓存 + 智能重试（解决并发 sha 冲突与保存失败）
 var rmwCache = { data: null, sha: null, at: 0 };
+var _writeChain = Promise.resolve();
+function enqueueWrite(fn) {
+  var p = _writeChain.then(function() { return fn(); });
+  _writeChain = p.catch(function() { /* 队列不因单次失败中断 */ });
+  return p;
+}
+function isConflictError(msg) {
+  msg = String(msg || '');
+  return /409|422|conflict|stale|sha does not match|"sha" wasn't supplied/i.test(msg);
+}
+function isRateLimitError(msg) {
+  msg = String(msg || '');
+  return /429|rate limit|API rate limit/i.test(msg);
+}
 async function rmw(modifyFn, maxRetries) {
-  maxRetries = maxRetries || 3;
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      // Reuse fresh cache (within 3s) to skip the GET round trip
-      let data, sha;
-      if (rmwCache.data && Date.now() - rmwCache.at < 3000) {
-        data = rmwCache.data;
-        sha = rmwCache.sha;
-      } else {
-        const loaded = await ghLoadData();
-        data = loaded.data;
-        sha = loaded.sha;
-      }
-      // 数据完整性保护：确保关键计数器存在
-      if (!data.nextRecordId) data.nextRecordId = (data.records || []).reduce(function(max, r) { return (r.id && r.id > max) ? r.id : max; }, 0) + 1;
-      if (!data.nextUserId) data.nextUserId = (data.users || []).reduce(function(max, u) { return (u.id && u.id > max) ? u.id : max; }, 0) + 1;
-      if (!data.nextLogId) data.nextLogId = 1;
-      if (!data.nextCfId) data.nextCfId = 1;
-      if (!data.settings) data.settings = { customFields: [], nextCfId: 1 };
-      if (!data.settings.fieldConfig) {
-        data.settings.fieldConfig = DEFAULT_FIELD_CONFIG.map(function(f) { return Object.assign({}, f); });
-        data.settings.fieldConfigUpdatedAt = now();
-        if (data.settings.customFields && data.settings.customFields.length > 0) {
-          for (var ci = 0; ci < data.settings.customFields.length; ci++) {
-            var cf = data.settings.customFields[ci];
-            data.settings.fieldConfig.push({
-              key: 'cf_' + cf.id, label: cf.label, type: cf.type, options: cf.options || [],
-              section: 'custom', editableBy: 'collab', visible: true, isCustom: true, cfId: cf.id
-            });
+  maxRetries = maxRetries || 5;
+  // 整个读-改-写过程串行入队，避免并发写互相踩 sha
+  return enqueueWrite(async function() {
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        // Reuse fresh cache (within 30s) to skip the GET round trip
+        let data, sha;
+        if (rmwCache.data && Date.now() - rmwCache.at < 30000) {
+          data = rmwCache.data;
+          sha = rmwCache.sha;
+        } else {
+          const loaded = await ghLoadData();
+          data = loaded.data;
+          sha = loaded.sha;
+        }
+        // 数据完整性保护：确保关键计数器存在
+        if (!data.nextRecordId) data.nextRecordId = (data.records || []).reduce(function(max, r) { return (r.id && r.id > max) ? r.id : max; }, 0) + 1;
+        if (!data.nextUserId) data.nextUserId = (data.users || []).reduce(function(max, u) { return (u.id && u.id > max) ? u.id : max; }, 0) + 1;
+        if (!data.nextLogId) data.nextLogId = 1;
+        if (!data.nextCfId) data.nextCfId = 1;
+        if (!data.settings) data.settings = { customFields: [], nextCfId: 1 };
+        if (!data.settings.fieldConfig) {
+          data.settings.fieldConfig = DEFAULT_FIELD_CONFIG.map(function(f) { return Object.assign({}, f); });
+          data.settings.fieldConfigUpdatedAt = now();
+          if (data.settings.customFields && data.settings.customFields.length > 0) {
+            for (var ci = 0; ci < data.settings.customFields.length; ci++) {
+              var cf = data.settings.customFields[ci];
+              data.settings.fieldConfig.push({
+                key: 'cf_' + cf.id, label: cf.label, type: cf.type, options: cf.options || [],
+                section: 'custom', editableBy: 'collab', visible: true, isCustom: true, cfId: cf.id
+              });
+            }
           }
         }
+        if (!data.logs) data.logs = [];
+        modifyFn(data);
+        var newSha = await ghSaveData(data, sha);
+        // Update cache so the next rmw skips GET (web: saves ~1.5s)
+        rmwCache.data = data;
+        rmwCache.sha = newSha || sha;
+        rmwCache.at = Date.now();
+        return;
+      } catch(e) {
+        // On conflict (stale sha) or network failure: invalidate cache so next attempt re-GETs
+        rmwCache.data = null;
+        if (i === maxRetries - 1) throw e;
+        var waitMs = isRateLimitError(e.message) ? 2500 : (isConflictError(e.message) ? 800 : 1200);
+        console.log('Retry ' + (i + 1) + ': ' + e.message + ' (wait ' + waitMs + 'ms)');
+        await new Promise(r => setTimeout(r, waitMs));
       }
-      if (!data.logs) data.logs = [];
-      modifyFn(data);
-      var newSha = await ghSaveData(data, sha);
-      // Update cache so the next rmw skips GET (web: saves ~1.5s)
-      rmwCache.data = data;
-      rmwCache.sha = newSha || sha;
-      rmwCache.at = Date.now();
-      return;
-    } catch(e) {
-      // On conflict (stale sha) or network failure: invalidate cache so next attempt re-GETs
-      rmwCache.data = null;
-      if (i === maxRetries - 1) throw e;
-      console.log('Retry ' + (i+1) + ': ' + e.message);
-      await new Promise(r => setTimeout(r, 700 * (i + 1)));
     }
-  }
+  });
 }
 
 // Field-config operations: desktop hits the fast /api/settings endpoint (milliseconds),
@@ -793,6 +837,21 @@ function now() { return new Date().toISOString().replace('T',' ').substring(0,19
 function showLoading(show, msg) {
   if (msg) document.getElementById('loadingText').innerHTML = msg;
   document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none';
+}
+
+// 顶部同步状态提示（ok=成功 / saving=进行中 / err=失败），自动消失
+var _toastTimer = null;
+function showToast(msg, type, duration) {
+  var wrap = document.getElementById('toastWrap');
+  if (!wrap) return;
+  document.getElementById('toastMsg').innerHTML = msg;
+  document.getElementById('toastIcon').textContent = type === 'err' ? '!' : (type === 'saving' ? '…' : '✓');
+  wrap.className = 'toast-wrap ' + (type || 'ok');
+  wrap.style.display = 'flex';
+  clearTimeout(_toastTimer);
+  if (type !== 'saving') {
+    _toastTimer = setTimeout(function() { wrap.style.display = 'none'; }, duration || 2200);
+  }
 }
 
 // ============================================================
@@ -907,14 +966,14 @@ function init() {
   if (IS_DESKTOP) {
     document.getElementById('syncBadge').style.display = 'inline-flex';
     updateSyncBadge();
-    // Auto-refresh every 15s to catch cloud changes synced by server
-    setInterval(function() {
-      if (!editingRecordId && !document.getElementById('modalOverlay').style.display.includes('flex')) {
-        loadRecords(true);
-        updateSyncBadge();
-      }
-    }, 15000);
   }
+  // Auto-refresh: desktop 15s (server pushes), web 30s (GitHub direct) — catch changes from other devices
+  setInterval(function() {
+    if (!editingRecordId && !document.getElementById('modalOverlay').style.display.includes('flex')) {
+      loadRecords(true);
+      if (IS_DESKTOP) updateSyncBadge();
+    }
+  }, IS_DESKTOP ? 15000 : 30000);
   loadRecords();
 }
 
@@ -975,7 +1034,8 @@ async function loadRecords(silent) {
     renderTable();
   } catch(e) {
     console.error('Load error:', e);
-    alert('加载数据失败: ' + e.message);
+    // 自动刷新失败静默处理（不打断用户操作），手动加载失败才提示
+    if (!silent) showToast('加载数据失败：' + e.message, 'err', 4000);
   } finally {
     showLoading(false);
   }
@@ -1591,7 +1651,7 @@ async function uploadAttachments(fieldKey, files, inputEl) {
     rec[fieldKey] = JSON.stringify(atts);
     refreshAttList(fieldKey);
   } catch(e) {
-    alert('上传失败: ' + e.message);
+    showToast('上传失败：' + e.message + '，可重试', 'err', 4000);
   } finally {
     showLoading(false);
     if (inputEl) inputEl.value = '';
@@ -1671,7 +1731,7 @@ async function deleteAttachment(fieldKey, path, btn) {
       refreshAttList(fieldKey);
     }
   } catch(e) {
-    alert('删除失败: ' + e.message);
+    showToast('删除失败：' + e.message, 'err', 4000);
   } finally {
     showLoading(false);
   }
@@ -1708,7 +1768,7 @@ async function downloadSingleAttachment(path) {
     a.href = url; a.download = name; a.click();
     setTimeout(function() { URL.revokeObjectURL(url); }, 3000);
   } catch(e) {
-    alert('下载失败: ' + e.message);
+    showToast('下载失败：' + e.message, 'err', 4000);
   }
 }
 
@@ -1890,7 +1950,7 @@ async function saveRecord() {
       renderStats();
       renderTable();
     } catch(e) {
-      alert('保存失败: ' + e.message + '\n请重试。');
+      showToast('保存失败：' + e.message + '，可重试', 'err', 4000);
     } finally {
       btnSave.textContent = '保存';
       btnSave.disabled = false;
@@ -1899,6 +1959,7 @@ async function saveRecord() {
   }
   
   // ============ 网页端：rmw + 乐观更新（无延迟） ============
+  showToast('正在保存…', 'saving');
   showLoading(true);
   try {
     var editingId = editingRecordId;
@@ -2004,8 +2065,10 @@ async function saveRecord() {
     }
     renderStats();
     renderTable();
+    showToast('已保存并同步 ✓', 'ok');
   } catch(e) {
-    alert('保存失败: ' + e.message + '\n请重试。');
+    console.error('保存失败:', e);
+    showToast('保存失败：' + e.message + '（已重试，可刷新恢复）', 'err', 4000);
   } finally {
     btnSave.textContent = '保存';
     btnSave.disabled = false;
@@ -2019,20 +2082,24 @@ async function saveRecord() {
 async function deleteRecord() {
   if (!editingRecordId) return;
   if (!confirm('确定删除此记录吗？此操作不可恢复。')) return;
-  
-  showLoading(true);
+
+  // 乐观删除：界面立即关闭并移除，后台同步到云端
+  var rid = editingRecordId;
+  records = records.filter(function(r) { return r.id !== rid; });
+  closeModal();
+  renderStats();
+  renderTable();
+  showToast('正在删除…', 'saving');
   try {
     await rmw(function(store) {
-      var rid = editingRecordId;
       store.logs = store.logs.filter(function(l) { return l.record_id !== rid; });
       store.records = store.records.filter(function(r) { return r.id !== rid; });
     });
-    closeModal();
-    await loadRecords();
+    showToast('已删除 ✓', 'ok');
   } catch(e) {
-    alert('删除失败: ' + e.message);
-  } finally {
-    showLoading(false);
+    console.error('删除失败:', e);
+    showToast('删除失败：' + e.message + '（数据可能未删除，请刷新查看）', 'err', 4000);
+    loadRecords(true).catch(function() {});
   }
 }
 
@@ -2215,7 +2282,7 @@ async function saveAdminProfile() {
     alert('管理员信息已更新！');
     closeSettings();
   } catch(e) {
-    alert('保存失败: ' + e.message);
+    showToast('保存失败：' + e.message, 'err', 4000);
   } finally {
     showLoading(false);
   }
@@ -2274,7 +2341,7 @@ async function toggleFieldVisible(key, visible) {
     });
     renderFieldManagement();
   } catch(e) {
-    alert('保存失败: ' + e.message);
+    showToast('保存失败：' + e.message, 'err', 4000);
     renderFieldManagement(); // revert UI
   } finally {
     showLoading(false);
@@ -2290,7 +2357,7 @@ async function toggleFieldEditable(key, collabEditable) {
     });
     renderFieldManagement();
   } catch(e) {
-    alert('保存失败: ' + e.message);
+    showToast('保存失败：' + e.message, 'err', 4000);
     renderFieldManagement();
   } finally {
     showLoading(false);
@@ -2401,7 +2468,7 @@ async function deleteCollaborator(id) {
     await loadRecords();
     renderCollaboratorList();
   } catch(e) {
-    alert('删除失败: ' + e.message);
+    showToast('删除失败：' + e.message, 'err', 4000);
   } finally {
     showLoading(false);
   }
@@ -2503,7 +2570,7 @@ async function deleteField(key) {
     renderFieldManagement();
     renderTable();
   } catch(e) {
-    alert('删除失败: ' + e.message);
+    showToast('删除失败：' + e.message, 'err', 4000);
   } finally {
     showLoading(false);
   }
@@ -2642,7 +2709,7 @@ async function saveFieldEdit() {
     // Refresh data in background — don't block the save success
     loadRecords(true).catch(function() {});
   } catch(e) {
-    alert('保存失败: ' + e.message);
+    showToast('保存失败：' + e.message, 'err', 4000);
   } finally {
     showLoading(false);
   }
