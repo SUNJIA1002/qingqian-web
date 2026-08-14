@@ -379,7 +379,7 @@ table.stats tr:hover td { background: #33415533; }
       <input type="text" id="policyTitle" placeholder="例如：《民企清欠工作管理办法》" maxlength="200">
     </div>
     <div class="form-group">
-      <label>政策文件（PDF / Word / 图片，单个 ≤ 10MB）</label>
+      <label>政策文件（PDF / Word / 图片，单个 ≤ 100MB）</label>
       <div class="file-drop" id="policyDrop" onclick="document.getElementById('policyFile').click()">
         点击选择文件（仅限 1 个）
       </div>
@@ -406,7 +406,7 @@ table.stats tr:hover td { background: #33415533; }
       <input type="date" id="trainingTime">
     </div>
     <div class="form-group">
-      <label>会议资料（照片 / 图片 / 表格 / Word / PPT，可多选，单个 ≤ 10MB）</label>
+      <label>会议资料（照片 / 图片 / 表格 / Word / PPT，可多选，单个 ≤ 100MB）</label>
       <div class="file-drop" id="trainingDrop" onclick="document.getElementById('trainingFiles').click()">
         点击选择多个文件
       </div>
@@ -815,7 +815,7 @@ function handlePolicyFile(input) {
   var list = document.getElementById('policyFileList');
   if (!input.files || !input.files.length) { list.innerHTML = ''; return; }
   var f = input.files[0];
-  if (f.size > 10 * 1024 * 1024) { alert('文件超过 10MB，请压缩后重试'); input.value = ''; list.innerHTML = ''; return; }
+  if (f.size > 100 * 1024 * 1024) { alert('文件超过 100MB 上限（GitHub 平台限制），请压缩后重试'); input.value = ''; list.innerHTML = ''; return; }
   list.innerHTML = '<div class="file-tag"><span>📄</span><span class="fn">' + esc(f.name) + '</span><span class="fs">' + fmtSize(f.size) + '</span></div>';
   document.getElementById('policyDrop').classList.add('has-files');
 }
@@ -976,7 +976,7 @@ function renderTrainings() {
       '<div class="training-files" id="trFiles_' + t.id + '">' +
         '<div style="padding:8px 6px 4px;color:var(--text-secondary);font-size:11px">点击文件下载 / 查看</div>' +
         (fileCount ? renderTrainingFiles(t) : '<div style="padding:8px;font-size:12px;color:var(--text-secondary)">暂无文件</div>') +
-        (isSuperAdmin ? '<div style="padding:10px 4px 2px"><label class="btn btn-outline btn-sm" style="cursor:pointer">＋ 添加文件<input type="file" multiple style="display:none" onchange="addTrainingFiles(' + t.id + ', this.files, this)"></label><span style="font-size:11px;color:var(--text-secondary);margin-left:8px">单个 ≤ 10MB</span></div>' : '') +
+        (isSuperAdmin ? '<div style="padding:10px 4px 2px"><label class="btn btn-outline btn-sm" style="cursor:pointer">＋ 添加文件<input type="file" multiple style="display:none" onchange="addTrainingFiles(' + t.id + ', this.files, this)"></label><span style="font-size:11px;color:var(--text-secondary);margin-left:8px">单个 ≤ 100MB</span></div>' : '') +
       '</div>' +
     '</div>';
   }
@@ -1037,10 +1037,10 @@ function handleTrainingFiles(input) {
   var html = '';
   for (var i = 0; i < input.files.length; i++) {
     var f = input.files[i];
-    if (f.size > 10 * 1024 * 1024) { alert('文件「' + f.name + '」超过 10MB，已跳过'); continue; }
+    if (f.size > 100 * 1024 * 1024) { alert('文件「' + f.name + '」超过 100MB 上限，已跳过'); continue; }
     html += '<div class="file-tag"><span>📎</span><span class="fn">' + esc(f.name) + '</span><span class="fs">' + fmtSize(f.size) + '</span></div>';
   }
-  list.innerHTML = html || '<div style="font-size:12px;color:var(--warning)">所选文件均超过 10MB，请重新选择</div>';
+  list.innerHTML = html || '<div style="font-size:12px;color:var(--warning)">所选文件均超过 100MB 上限，请重新选择</div>';
   document.getElementById('trainingDrop').classList.toggle('has-files', html !== '');
 }
 
@@ -1067,7 +1067,7 @@ async function uploadTraining() {
       // Upload files one by one
       for (var i = 0; i < input.files.length; i++) {
         var f = input.files[i];
-        if (f.size > 10 * 1024 * 1024) continue;
+        if (f.size > 100 * 1024 * 1024) { alert('「' + f.name + '」超过 100MB 上限，已跳过'); continue; }
         var b64 = await fileToBase64(f);
         var fres = await fetchTimed('/api/trainings/' + trainingId + '/files', {
           method: 'POST', headers: authHeaders(),
@@ -1092,7 +1092,7 @@ async function uploadTraining() {
       });
       for (var j = 0; j < input.files.length; j++) {
         var fj = input.files[j];
-        if (fj.size > 10 * 1024 * 1024) continue;
+        if (fj.size > 100 * 1024 * 1024) { alert('「' + fj.name + '」超过 100MB 上限，已跳过'); continue; }
         var bj = await fileToBase64(fj);
         var safeN = safeFileName(fj.name);
         var tPath = 'attachments/trainings/t' + trainingId + '/' + encodeURIComponent(safeN);
@@ -1134,7 +1134,7 @@ async function addTrainingFiles(id, files, inputEl) {
     if (IS_DESKTOP) {
       for (var i = 0; i < files.length; i++) {
         var f = files[i];
-        if (f.size > 10 * 1024 * 1024) { alert('「' + f.name + '」超过 10MB，已跳过'); continue; }
+        if (f.size > 100 * 1024 * 1024) { alert('「' + f.name + '」超过 100MB 上限，已跳过'); continue; }
         var b64 = await fileToBase64(f);
         var res = await fetchTimed('/api/trainings/' + id + '/files', {
           method: 'POST', headers: authHeaders(),
@@ -1148,7 +1148,7 @@ async function addTrainingFiles(id, files, inputEl) {
     } else {
       for (var j = 0; j < files.length; j++) {
         var fj = files[j];
-        if (fj.size > 10 * 1024 * 1024) { alert('「' + fj.name + '」超过 10MB，已跳过'); continue; }
+        if (fj.size > 100 * 1024 * 1024) { alert('「' + fj.name + '」超过 100MB 上限，已跳过'); continue; }
         var bj = await fileToBase64(fj);
         var safeN = safeFileName(fj.name);
         var tPath = 'attachments/trainings/t' + id + '/' + encodeURIComponent(safeN);
