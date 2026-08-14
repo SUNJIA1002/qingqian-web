@@ -279,6 +279,24 @@ table.stats tr:hover td { background: #33415533; }
 .loading-box { display: flex; flex-direction: column; align-items: center; gap: 14px; }
 .loading-text { color: #e2e8f0; font-size: 14px; max-width: 420px; text-align: center; line-height: 1.6; padding: 0 20px; }
 .loading-text b { color: #93c5fd; font-weight: 600; }
+/* 顶部同步状态提示 toast */
+.toast-wrap {
+  position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 8px;
+  background: #0f172a; border: 1px solid rgba(255,255,255,.15);
+  color: #e2e8f0; border-radius: 10px; padding: 10px 18px;
+  box-shadow: 0 8px 30px rgba(0,0,0,.45); z-index: 500;
+  font-size: 13px; max-width: 86vw;
+}
+.toast-icon {
+  width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; color: #fff;
+}
+.toast-wrap.ok .toast-icon { background: #22c55e; }
+.toast-wrap.saving .toast-icon { background: #3b82f6; }
+.toast-wrap.err .toast-icon { background: #ef4444; }
+.toast-msg { line-height: 1.45; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ===== Login ===== */
@@ -376,6 +394,12 @@ table.stats tr:hover td { background: #33415533; }
     <div class="spinner"></div>
     <div class="loading-text" id="loadingText">处理中，请稍候…</div>
   </div>
+</div>
+
+<!-- 顶部同步状态提示 toast -->
+<div class="toast-wrap" id="toastWrap" style="display:none">
+  <div class="toast-icon" id="toastIcon">✓</div>
+  <div class="toast-msg" id="toastMsg">已保存</div>
 </div>
 
 <!-- Modal: Policy upload -->
@@ -573,32 +597,50 @@ async function ghSaveData(data, sha) {
 }
 
 // Read-Modify-Write with retry (same as management system)
+// v2: 写操作串行队列 + 30s 缓存 + 智能重试（解决并发 sha 冲突与保存失败）
 var rmwCache = { data: null, sha: null, at: 0 };
+var _writeChain = Promise.resolve();
+function enqueueWrite(fn) {
+  var p = _writeChain.then(function() { return fn(); });
+  _writeChain = p.catch(function() { /* 队列不因单次失败中断 */ });
+  return p;
+}
+function isConflictError(msg) {
+  msg = String(msg || '');
+  return /409|422|conflict|stale|sha does not match|"sha" wasn't supplied/i.test(msg);
+}
+function isRateLimitError(msg) {
+  msg = String(msg || '');
+  return /429|rate limit|API rate limit/i.test(msg);
+}
 async function rmw(modifyFn, maxRetries) {
-  maxRetries = maxRetries || 4;
-  for (var i = 0; i < maxRetries; i++) {
-    try {
-      var data, sha;
-      if (rmwCache.data && Date.now() - rmwCache.at < 3000) {
-        data = rmwCache.data; sha = rmwCache.sha;
-      } else {
-        var loaded = await ghLoadData();
-        data = loaded.data; sha = loaded.sha;
+  maxRetries = maxRetries || 5;
+  return enqueueWrite(async function() {
+    for (var i = 0; i < maxRetries; i++) {
+      try {
+        var data, sha;
+        if (rmwCache.data && Date.now() - rmwCache.at < 30000) {
+          data = rmwCache.data; sha = rmwCache.sha;
+        } else {
+          var loaded = await ghLoadData();
+          data = loaded.data; sha = loaded.sha;
+        }
+        ensurePortalCollections(data);
+        modifyFn(data);
+        var newSha = await ghSaveData(data, sha);
+        rmwCache.data = data;
+        rmwCache.sha = newSha || sha;
+        rmwCache.at = Date.now();
+        return;
+      } catch(e) {
+        rmwCache.data = null;
+        if (i === maxRetries - 1) throw e;
+        var waitMs = isRateLimitError(e.message) ? 2500 : (isConflictError(e.message) ? 800 : 1200);
+        console.log('Retry ' + (i + 1) + ': ' + e.message + ' (wait ' + waitMs + 'ms)');
+        await new Promise(function(r) { setTimeout(r, waitMs); });
       }
-      ensurePortalCollections(data);
-      modifyFn(data);
-      var newSha = await ghSaveData(data, sha);
-      rmwCache.data = data;
-      rmwCache.sha = newSha || sha;
-      rmwCache.at = Date.now();
-      return;
-    } catch(e) {
-      rmwCache.data = null;
-      if (i === maxRetries - 1) throw e;
-      console.log('Retry ' + (i + 1) + ': ' + e.message);
-      await new Promise(function(r) { setTimeout(r, 700 * (i + 1)); });
     }
-  }
+  });
 }
 
 function ensurePortalCollections(data) {
@@ -640,6 +682,20 @@ function showLoading(on, msg) {
   var el = document.getElementById('loadingOverlay');
   if (msg) document.getElementById('loadingText').innerHTML = msg;
   el.classList.toggle('show', !!on);
+}
+// 顶部同步状态提示（ok=成功 / saving=进行中 / err=失败），自动消失
+var _toastTimer = null;
+function showToast(msg, type, duration) {
+  var wrap = document.getElementById('toastWrap');
+  if (!wrap) return;
+  document.getElementById('toastMsg').innerHTML = msg;
+  document.getElementById('toastIcon').textContent = type === 'err' ? '!' : (type === 'saving' ? '…' : '✓');
+  wrap.className = 'toast-wrap ' + (type || 'ok');
+  wrap.style.display = 'flex';
+  clearTimeout(_toastTimer);
+  if (type !== 'saving') {
+    _toastTimer = setTimeout(function() { wrap.style.display = 'none'; }, duration || 2200);
+  }
 }
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
 function openModal(id) { document.getElementById(id).classList.add('show'); }
@@ -785,7 +841,7 @@ async function loadPortal(silent) {
     renderTrainings();
     renderRecordStats();
   } catch(e) {
-    if (!silent) alert('加载失败: ' + e.message);
+    if (!silent) showToast('加载失败：' + e.message, 'err', 4000);
   } finally {
     if (!silent) showLoading(false);
   }
@@ -886,9 +942,9 @@ async function uploadPolicy() {
     }
     closeModal('policyModal');
     await loadPortal(true);
-    alert('政策上传成功');
+    showToast('政策上传成功 ✓', 'ok');
   } catch(e) {
-    alert('上传失败: ' + e.message);
+    showToast('上传失败：' + e.message + '，已自动重试', 'err', 4000);
   } finally {
     showLoading(false);
   }
@@ -930,7 +986,7 @@ async function downloadPolicy(id) {
     }
     await loadPortal(true);
   } catch(e) {
-    alert('下载失败: ' + e.message);
+    showToast('下载失败：' + e.message, 'err', 4000);
   } finally {
     showLoading(false);
   }
@@ -963,7 +1019,7 @@ async function deletePolicy(id) {
     }
     await loadPortal(true);
   } catch(e) {
-    alert('删除失败: ' + e.message);
+    showToast('删除失败：' + e.message, 'err', 4000);
   } finally {
     showLoading(false);
   }
@@ -1140,9 +1196,9 @@ async function uploadTraining() {
     }
     closeModal('trainingModal');
     await loadPortal(true);
-    alert('宣贯资料上传成功');
+    showToast('宣贯资料上传成功 ✓', 'ok');
   } catch(e) {
-    alert('上传失败: ' + e.message);
+    showToast('上传失败：' + e.message + '，已自动重试', 'err', 4000);
   } finally {
     showLoading(false);
   }
@@ -1199,7 +1255,7 @@ async function addTrainingFiles(id, files, inputEl) {
     }
     await loadPortal(true);
   } catch(e) {
-    alert('添加文件失败: ' + e.message);
+    showToast('添加文件失败：' + e.message, 'err', 4000);
   } finally {
     showLoading(false);
     if (inputEl) inputEl.value = '';
@@ -1236,7 +1292,7 @@ async function deleteTrainingFile(id, path) {
     }
     await loadPortal(true);
   } catch(e) {
-    alert('删除失败: ' + e.message);
+    showToast('删除失败：' + e.message, 'err', 4000);
   } finally {
     showLoading(false);
   }
@@ -1273,7 +1329,7 @@ async function deleteTraining(id) {
     }
     await loadPortal(true);
   } catch(e) {
-    alert('删除失败: ' + e.message);
+    showToast('删除失败：' + e.message, 'err', 4000);
   } finally {
     showLoading(false);
   }
@@ -1285,7 +1341,7 @@ async function downloadTrainingFile(path, name) {
     var blob = await fetchFileBlob(path);
     saveBlob(blob, name || decodeURIComponent(path.split('/').pop() || '文件'));
   } catch(e) {
-    alert('下载失败: ' + e.message);
+    showToast('下载失败：' + e.message, 'err', 4000);
   } finally {
     showLoading(false);
   }
