@@ -578,14 +578,15 @@ async function ghSaveData(data, sha) {
     if (result.syncStatus) lastSyncInfo = result.syncStatus;
     return 'desktop';
   }
-  var content = utf8ToB64(JSON.stringify(data, null, 2));
+  // Web mode: save to GitHub API (compact JSON -27% 体积 + 60s 超时防误判失败)
+  var content = utf8ToB64(JSON.stringify(data));
   var res = await fetchTimed(
     'https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + GH.path,
     {
       method: 'PUT',
       headers: Object.assign({}, ghHeaders(), { 'Content-Type': 'application/json' }),
       body: JSON.stringify({ message: 'Portal update ' + now(), content: content, sha: sha, branch: GH.branch })
-    }, 25000
+    }, 60000
   );
   if (!res.ok) {
     var err = { message: '' };
@@ -634,6 +635,10 @@ async function rmw(modifyFn, maxRetries) {
         return;
       } catch(e) {
         rmwCache.data = null;
+        // 超时错误：PUT 可能已成功写入，不盲目重试（防止重复创建记录），提示用户确认
+        if (e.name === 'AbortError' || /aborted|timeout/i.test(String(e.message || ''))) {
+          throw new Error('保存超时：请刷新页面确认是否已保存（若未保存请重试）');
+        }
         if (i === maxRetries - 1) throw e;
         var waitMs = isRateLimitError(e.message) ? 2500 : (isConflictError(e.message) ? 800 : 1200);
         console.log('Retry ' + (i + 1) + ': ' + e.message + ' (wait ' + waitMs + 'ms)');
@@ -802,11 +807,15 @@ function init() {
   if (IS_DESKTOP) {
     document.getElementById('syncBadge').style.display = 'inline-flex';
     updateSyncBadge();
-    setInterval(function() {
-      var anyModalOpen = document.querySelector('.modal-overlay.show') !== null;
-      if (!anyModalOpen) { loadPortal(true); updateSyncBadge(); }
-    }, 15000);
   }
+  // Auto-refresh: desktop 5s (server), web 10s (GitHub direct) — near-real-time cross-device sync
+  setInterval(function() {
+    var anyModalOpen = document.querySelector('.modal-overlay.show') !== null;
+    if (!anyModalOpen) {
+      loadPortal(true);
+      if (IS_DESKTOP) updateSyncBadge();
+    }
+  }, IS_DESKTOP ? 5000 : 10000);
   loadPortal();
 }
 
